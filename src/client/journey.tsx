@@ -1,12 +1,12 @@
 /** A Ticket's journey on its page: the steps it went through as a stepper, and its messages as a flow between the lanes. */
-import { useState, type CSSProperties } from 'react'
+import { useRef, useState, type CSSProperties } from 'react'
 import type { TicketPageView } from './api.ts'
 import { Icon, SegmentedControl, Tag, type IconName, type TagTone } from './controls.tsx'
 import { useArrivals } from './motion.ts'
 import { usePanel } from './provider.tsx'
-import { AgentAvatar, Avatar } from './team-kit.tsx'
+import { AgentAvatar, Avatar, useSize } from './team-kit.tsx'
 import { readableMarkers, valueLabel, type T } from './text.ts'
-import { Section, When } from './widgets.tsx'
+import { Empty, Section, When } from './widgets.tsx'
 
 type Journey = TicketPageView['journey']
 type Step = Journey['steps'][number]
@@ -78,8 +78,8 @@ function Bubble({ message, fresh, index }: { message: Message; fresh: boolean; i
 
 /** The lanes of the message flow, left to right: people, the agent's replies, the worker's reports and the host's notices. */
 const LANES = ['person', 'agent', 'worker', 'host'] as const
-const ROW = 52, LANE = 50, PAD = 22
-const laneX = (lane: Message['lane']) => PAD + LANES.indexOf(lane) * LANE
+/** A row's height, the space between rails (closer on a narrow screen, where the text needs the room) and the margin around them. */
+const ROW = 52, WIDE = 50, NARROW = 38, PAD = 22
 function who(t: T, message: Message): string {
   if (message.lane === 'person') return message.actor?.name ? t('lang') === 'en' ? message.actor.name.en : message.actor.name.zh : t('flow.lane.person')
   return t(`flow.lane.${message.lane}`)
@@ -96,8 +96,12 @@ function kind(t: T, message: Message): string {
  */
 function LaneGraph({ messages, fresh }: { messages: Message[]; fresh: Set<string> }) {
   const { t } = usePanel()
-  const width = PAD * 2 + LANE * (LANES.length - 1)
-  return <div className="dt-lanes">
+  const box = useRef<HTMLDivElement>(null)
+  const narrow = useSize(box, { width: 560, height: 1 }).width < 480
+  const spacing = narrow ? NARROW : WIDE
+  const laneX = (lane: Message['lane']) => PAD + LANES.indexOf(lane) * spacing
+  const width = PAD * 2 + spacing * (LANES.length - 1)
+  return <div className="dt-lanes" ref={box} data-narrow={narrow || undefined}>
     <div className="dt-lanes-head" style={{ width }}>
       {LANES.map(lane => <span key={lane} className="dt-lanes-name" data-lane={lane} style={{ left: laneX(lane) }}>{t(`flow.lane.${lane}`)}</span>)}
     </div>
@@ -134,7 +138,7 @@ export function MessageFlow({ journey }: { journey: Journey }) {
   const toggle = <SegmentedControl className="dt-flow-view" label={t('flow.title')} value={view} onChange={setView}
     options={[{ value: 'lanes', label: t('flow.view.lanes') }, { value: 'chat', label: t('flow.view.chat') }]} />
   return <Section icon="message" title={t('flow.title')} count={journey.messages.length} hint={t('flow.hint')} action={journey.messages.length ? toggle : undefined}>
-    {!journey.messages.length ? <p className="dt-hint">{t('flow.empty')}</p> : view === 'lanes' ? <LaneGraph messages={journey.messages} fresh={fresh} />
+    {!journey.messages.length ? <Empty icon="message">{t('flow.empty')}</Empty> : view === 'lanes' ? <LaneGraph messages={journey.messages} fresh={fresh} />
       : <ol className="dt-messages">{journey.messages.map((message, index) => <Bubble key={message.id} message={message}
         fresh={fresh.has(message.id)} index={index} />)}</ol>}
   </Section>

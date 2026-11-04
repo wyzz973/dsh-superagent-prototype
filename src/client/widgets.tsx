@@ -34,6 +34,10 @@ export function Section({ title, count, children, action, hint, badge, icon }: {
   </section>
 }
 export function Hint({ children }: { children: ReactNode }) { return <p className="dt-hint">{children}</p> }
+/** What an empty list or view says, set apart in a quiet frame with an icon so it reads as a state rather than a stray hint. */
+export function Empty({ icon, children }: { icon: IconName; children: ReactNode }) {
+  return <p className="dt-empty"><Icon name={icon} size={16} />{children}</p>
+}
 export function LabelValue({ label, value }: { label: string; value: ReactNode }) {
   return <span className="dt-lv"><span className="dt-lv-label">{label}</span> <span className="dt-lv-value">{value}</span></span>
 }

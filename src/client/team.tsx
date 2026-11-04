@@ -6,7 +6,7 @@ import { useArrivals } from './motion.ts'
 import { usePanel } from './provider.tsx'
 import { AgentAvatar, Avatar, Count, Kpi, PageIntro, duration, percent, useSize } from './team-kit.tsx'
 import { actorName, readableMarkers, valueLabel, type T } from './text.ts'
-import { LoadState, Section, When } from './widgets.tsx'
+import { Empty, LoadState, Section, When } from './widgets.tsx'
 
 function AgentCard({ agent, days }: { agent: TeamView['agent']; days: number }) {
   const { t } = usePanel()
@@ -43,7 +43,7 @@ function AgentCard({ agent, days }: { agent: TeamView['agent']; days: number }) 
 
 function Members({ members }: { members: TeamView['members'] }) {
   const { t } = usePanel()
-  if (!members.length) return <p className="dt-empty"><Icon name="users" size={16} />{t('team.membersNone')}</p>
+  if (!members.length) return <Empty icon="users">{t('team.membersNone')}</Empty>
   return <ul className="dt-members">{members.map(member => <li key={member.key} className="dt-member">
     <Avatar actor={member.actor} id={member.key} t={t} size="lg" />
     <div className="dt-member-main">
@@ -89,7 +89,7 @@ function Activity({ events }: { events: TeamActivity[] }) {
   const { t, navigate } = usePanel()
   const fresh = useArrivals(events.map(eventKey))
   const [shown, setShown] = useState(FEED_STEP)
-  if (!events.length) return <p className="dt-empty"><Icon name="activity" size={16} />{t('team.activityNone')}</p>
+  if (!events.length) return <Empty icon="activity">{t('team.activityNone')}</Empty>
   const groups: { day: string; events: TeamActivity[] }[] = []
   for (const event of events.slice(0, shown)) {
     const day = dayLabel(t, event.at)

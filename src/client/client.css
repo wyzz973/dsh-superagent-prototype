@@ -743,7 +743,11 @@ body[data-ds-dark-theme] .dt-avatar:not(.dt-avatar-agent) { color: hsl(var(--dt-
 .dt-lane-row:last-child .dt-lane-dot { fill: var(--dt-lane); }
 .dt-lane-row[data-pending] .dt-lane-dot { fill: var(--dt-lane); animation: dt-breathe 1.8s ease-in-out infinite; }
 .dt-lane-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
-.dt-lane-kind { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dt-lane-text .dt-flow-meta { flex-wrap: nowrap; min-width: 0; white-space: nowrap; }
+.dt-lane-text .dt-flow-who, .dt-lane-text .dt-flow-time, .dt-lane-text .dt-flow-pending { flex: none; }
+.dt-lane-kind { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dt-lanes[data-narrow] .dt-lanes-name { padding: 0 3px; font-size: 9.5px; }
+.dt-lanes[data-narrow] .dt-lane-kind { display: none; }
 .dt-retracted { color: var(--dsw-alias-label-tertiary); font-style: italic; text-decoration: line-through; text-decoration-color: var(--dsw-alias-border-l4); }
 .dt-lane-row[data-retracted] .dt-lane-dot { fill: var(--dsw-alias-bg-layer-1); stroke: var(--dsw-alias-label-caption); stroke-dasharray: 2 2; }
 .dt-flow-item[data-retracted] .dt-flow-body { border-style: dashed; background: transparent; }
