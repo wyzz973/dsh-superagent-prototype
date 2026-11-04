@@ -83,6 +83,25 @@ describe('Channels', () => {
     run.mockRejectedValueOnce(lark(99991400, 'rate limited'))
     await expect(send(value, feishu)).rejects.toThrow('rate limited (99991400)')
   })
+  it('give the id of a Feishu reply it sent, and recall that reply by it once the message it answered is withdrawn', async () => {
+    const value = commands()
+    const run = vi.spyOn(value, 'run').mockResolvedValueOnce(JSON.stringify({ ok: true, data: { message_id: 'om_reply1' } }))
+    expect(await send(value, feishu)).toEqual({ remote: 'om_reply1' })
+    expect(sources.retracts(feishu.channel)).toBe(true)
+    expect(sources.retracts(githubChannel(8))).toBe(false)
+    run.mockResolvedValueOnce(JSON.stringify({ ok: true, data: {} }))
+    expect(await sources.retract({ ...feishu, remote: 'om_reply1' }, value)).toBe('retracted')
+    expect(run.mock.calls.at(-1)![1]).toEqual(expect.arrayContaining(['api', 'DELETE', '/open-apis/im/v1/messages/om_reply1']))
+    // Past the time a bot may recall, or once the reply is gone, Feishu refuses for good; a timeout is tried again.
+    run.mockRejectedValueOnce(lark(230011, 'The message is recalled'))
+    expect(await sources.retract({ ...feishu, remote: 'om_reply1' }, value)).toBe('gone')
+    run.mockRejectedValueOnce(lark(230026, 'the message has exceeded the recall time'))
+    expect(await sources.retract({ ...feishu, remote: 'om_reply1' }, value)).toBe('gone')
+    run.mockRejectedValueOnce(lark(99991400, 'rate limited'))
+    await expect(sources.retract({ ...feishu, remote: 'om_reply1' }, value)).rejects.toThrow('rate limited')
+    // A kind whose messages stay once sent keeps them.
+    expect(await sources.retract({ ...reply, remote: '1' }, value)).toBe('gone')
+  })
   it('keep a Feishu reply whose command timed out for a retry, whatever its text says', async () => {
     const value = commands()
     const timedOut = { killed: true, signal: 'SIGTERM', code: null, stderr: '', message: 'Command failed: lark-bot --markdown withdrawn' }

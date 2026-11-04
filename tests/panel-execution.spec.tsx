@@ -1,12 +1,14 @@
 // @vitest-environment jsdom
 // The Execution status, a Ticket, and the Execution settings.
 import { act } from 'react'
-import { expect, it } from 'vitest'
+import { beforeEach, expect, it } from 'vitest'
 import { en, zh } from '../src/client/locales.ts'
 import { usePanel, mount, remount, all, find, tab, click, type, text, field, at } from './fixtures/panel.tsx'
 import { MEMBER, server, ticketSummary, threadSummary } from './fixtures/panel-server.ts'
 
 usePanel()
+// The board is the home page; these pages begin where the overview links from.
+beforeEach(() => { at({ page: 'overview' }) })
 it('lists Tickets under Execution by who they wait on, with the Executor state and its pause as an action', async () => {
   server.tickets.open = [ticketSummary(), ticketSummary({ id: 't2', title: '执行中的工单', threads: [{ key: 'github:7',
     source: 'github', title: '#7 x', facts: { number: { value: '#7' }, autoMerge: { label: { zh: '自动合并', en: 'Auto-merge' },
@@ -54,8 +56,17 @@ it('shows a Ticket with its stage, its Mandate details with the Trigger and Deci
   await mount()
   await click(all('.dt-open').find(button => button.textContent === '修复回归')!)
   expect(document.querySelector('.dt-page-title h2')?.textContent).toBe('修复回归')
-  // Progress is in the Channels and the Session, so the page has no report section.
-  expect(all('.dt-section-title').map(title => title.querySelector('.dt-section-name')?.textContent)).toEqual(['授权详情', '未送达的输入', '订阅的线程'])
+  // The journey leads, then the message flow: what people asked and the agent answered, in time order, before the details.
+  expect(all('.dt-journey-step').map(step => [step.querySelector('.dt-journey-label')?.textContent, step.dataset.state]))
+    .toEqual([['收到请求', 'done'], ['接单', 'done'], ['执行', 'current'], ['验收', 'todo'], ['结束', 'todo']])
+  expect(all('.dt-section-title').map(title => title.querySelector('.dt-section-name')?.textContent)).toEqual(['消息流转', '授权详情', '未送达的输入', '订阅的线程'])
+  // The flow opens as lanes, a dot per message on its lane and a line from each to the next; the conversation view is one click away.
+  expect(all('.dt-lane-row').map(item => [item.dataset.lane, item.querySelector('.dt-lane-line')?.textContent]))
+    .toEqual([['person', '登录页回归了'], ['agent', '我来修复登录页']])
+  expect(all('.dt-lane-row')[1]!.querySelector('.dt-lane-link')?.getAttribute('d')).toBe('M18,0 C18,13 58,13 58,26')
+  await click(find(zh['flow.view.chat'], '[role="tab"]'))
+  expect(all('.dt-messages > li').map(item => [item.dataset.lane, item.querySelector('.dt-flow-text')?.textContent]))
+    .toEqual([['person', '登录页回归了'], ['agent', '我来修复登录页']])
   expect(document.querySelector('.dt-status-line .dt-stage')?.textContent).toBe(zh.executingLabel)
   expect(document.querySelector('.dt-status-line .dt-stage .dt-spinner')).not.toBeNull()
   // A Thread this Ticket follows reads as subscribed on its page, though no other Ticket follows it.

@@ -72,6 +72,30 @@ export function storeReads(db: DatabaseSync) {
     .map(row => ({ ...JSON.parse(String(row.value)) as Receipt, attempts: Number(row.attempts), error: String(row.error) })),
   droppedReplies: (limit = 20): Dropped[] =>
     values('SELECT value FROM outbox WHERE dropped IS NOT NULL ORDER BY dropped DESC LIMIT ?', limit),
+  /** How many messages each Ticket sent to its conversations, by Ticket id: the attention its work cost the people there. */
+  sentByTicket: (): Record<string, number> => Object.fromEntries(db.prepare(`SELECT value ->> '$.ticketId' AS ticket, COUNT(*) AS n
+    FROM outbox WHERE value ->> '$.status' = 'sent' AND value ->> '$.ticketId' IS NOT NULL GROUP BY ticket`).all()
+    .map(row => [String(row.ticket), Number(row.n)])),
+  /**
+   * What passed through the engine since `since`, for the engine map: people's messages a Subscription fanned out to Tickets
+   * (`fanout`), Decisions by kind with those observe mode would have accepted, messages sent (receipts that record it), and
+   * messages their writers withdrew (`retracted`).
+   */
+  engineCounts: (since: string): { fanout: number; decisions: Record<string, number>; wouldAccept: number; sent: number; retracted: number } => {
+    const fanout = db.prepare(`SELECT COUNT(*) AS n FROM trigger t JOIN disposition d ON d.id = t.id WHERE t.at >= ?
+      AND json_extract(t.value, '$.human') = 1 AND json_array_length(json_extract(d.value, '$.fanout')) > 0`).get(since)
+    const decisions: Record<string, number> = {}
+    let wouldAccept = 0
+    for (const row of db.prepare(`SELECT json_extract(value, '$.kind') AS kind, COUNT(*) AS n, SUM(json_extract(value, '$.audit.would_accept') = 1) AS w
+      FROM decision WHERE json_extract(value, '$.at') >= ? GROUP BY kind`).all(since)) {
+      decisions[String(row.kind)] = Number(row.n); wouldAccept += Number(row.w ?? 0)
+    }
+    const sent = db.prepare("SELECT COUNT(*) AS n FROM outbox WHERE value ->> '$.sentAt' >= ?").get(since)
+    const retracted = db.prepare("SELECT COUNT(*) AS n FROM disposition WHERE value ->> '$.retracted.at' >= ?").get(since)
+    return { fanout: Number(fanout?.n ?? 0), decisions, wouldAccept, sent: Number(sent?.n ?? 0), retracted: Number(retracted?.n ?? 0) }
+  },
+  /** The messages a Ticket queued for its conversations, in the order it queued them. */
+  ticketMessages: (ticketId: string): Receipt[] => values("SELECT value FROM outbox WHERE value ->> '$.ticketId' = ? ORDER BY rowid", ticketId),
   droppedSince: (since: string): number => Number(db.prepare('SELECT COUNT(*) AS n FROM outbox WHERE dropped >= ?').get(since)?.n ?? 0),
   subscribedThreads: (source?: string): Thread[] => source
     ? values('SELECT value FROM thread WHERE subscribed = ? ORDER BY rowid', source)

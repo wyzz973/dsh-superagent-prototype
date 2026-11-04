@@ -1,12 +1,14 @@
 // @vitest-environment jsdom
 // The Source status and settings.
 import { act } from 'react'
-import { expect, it, onTestFinished, vi } from 'vitest'
+import { beforeEach, expect, it, onTestFinished, vi } from 'vitest'
 import { zh } from '../src/client/locales.ts'
 import { usePanel, mount, remount, settle, all, find, tab, click, type, text, field, at } from './fixtures/panel.tsx'
 import { server, problemOf, droppedReply } from './fixtures/panel-server.ts'
 
 usePanel()
+// The board is the home page; these pages begin where the overview links from.
+beforeEach(() => { at({ page: 'overview' }) })
 it('shows each Source\'s state on the Source status and opens its settings from a setup problem', async () => {
   await mount()
   await click(zh['tab.source'])

@@ -47,3 +47,4 @@ Call orchestrator_report with progress, ready, blocked, failed or dropped; inclu
 Omit pr_number or use null if no PR exists; never fill it with a placeholder such as 1.
 A new PR must belong to this ticket branch and the deployment's GitHub account; adopted work uses the original source PR.
 ready means reviewed implementation with relevant checks passed.
+A message its writer withdrew, recalled or deleted, asks for nothing: never act on it, answer it or quote it; a host notice says when the request a ticket started from was withdrawn.

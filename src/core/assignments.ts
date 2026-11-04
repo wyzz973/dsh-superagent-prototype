@@ -1,7 +1,7 @@
 /** What the Executor and its workers report about the Assignments that run tickets. */
 import { key } from './ids.ts'
 import { UserError } from './errors.ts'
-import { latestAssignment, liveTicket, runningAssignment } from './model.ts'
+import { EARLIER_REPORTS, latestAssignment, liveTicket, runningAssignment } from './model.ts'
 import type { ReportState, Ticket } from './model.ts'
 import { EnginePart, type EngineOptions } from './part.ts'
 import type { Replies } from './replies.ts'
@@ -119,6 +119,7 @@ export class Assignments extends EnginePart {
     else delete ticket.attention
     // A replaced or cleared attention question withdraws any pending unsent reply for the previous question from the outbox.
     if (previous && previous.id !== attention?.id) this.replies.withdrawAttention(previous.id)
+    if (assignment.report) assignment.earlier = [...assignment.earlier ?? [], assignment.report].slice(-EARLIER_REPORTS)
     assignment.report = { state: report.state, summary: report.summary, at }
     ticket.updatedAt = at
     if (report.answers && !ticket.answers?.includes(report.answers)) ticket.answers = [...ticket.answers ?? [], report.answers]

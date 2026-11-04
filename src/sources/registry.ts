@@ -3,7 +3,7 @@ import type { ChannelRef, OutboundMessage, ScopeResult, SourceScope, Trigger } f
 import type { Commands } from '../infra/commands.ts'
 import { HealthBoard, type HealthEntry } from '../infra/health.ts'
 import { AdmissionTableSchema, type Settings } from '../policy.ts'
-import type { ChannelLink, ChannelLinks, SourceInstance, SourceKind, TriggerContext, VariableSpec } from './kind.ts'
+import type { ChannelLink, ChannelLinks, ChannelSent, SourceInstance, SourceKind, TriggerContext, VariableSpec } from './kind.ts'
 
 
 /**
@@ -92,10 +92,21 @@ export class SourceRegistry implements SourceScope {
    * Sends a message idempotently through its Channel's kind; returns `'waiting'` while the kind is not installed, or
    * `'gone'` when the target (or a kind without channels) can never receive it.
    */
-  async send(message: OutboundMessage, commands: Commands): Promise<'sent' | 'gone' | 'waiting'> {
+  async send(message: OutboundMessage, commands: Commands): Promise<ChannelSent | 'waiting'> {
     const kind = this.kinds.get(message.channel.source)
     if (!kind) return 'waiting'
     return kind.channel ? kind.channel.send({ commands }, message) : 'gone'
+  }
+  /** Whether a message sent on `channel` can be taken back: its kind's Channel can retract what it sent. */
+  retracts(channel: ChannelRef): boolean { return !!this.kinds.get(channel.source)?.channel?.retract }
+  /**
+   * Takes back a sent message through its Channel's kind; `'waiting'` while the kind is not installed, `'gone'` when it can
+   * no longer be taken back or the kind keeps what it sent.
+   */
+  async retract(message: OutboundMessage & { remote: string }, commands: Commands): Promise<'retracted' | 'gone' | 'waiting'> {
+    const kind = this.kinds.get(message.channel.source)
+    if (!kind) return 'waiting'
+    return kind.channel?.retract ? kind.channel.retract({ commands }, message) : 'gone'
   }
   link(channel: ChannelRef, links: ChannelLinks): ChannelLink {
     const link = this.kinds.get(channel.source)?.channel?.link(channel.address, links)

@@ -87,3 +87,15 @@ export function topicEvent(message: FeishuMessage, chatId: string, direct: boole
     content: message.content ?? '', mentions: message.mentions ?? [], parent_id: message.parent_id, thread_id: message.thread_id,
     root_id: message.root_id ?? (message.message_id === root ? undefined : root), message_app_link: message.message_app_link }
 }
+
+/**
+ * A recalled message as the event consumer prints `im.message.recalled_v1`: the message, and when it was recalled, in epoch
+ * milliseconds as live events give times. The writer's own recall and an admin's both withdraw it.
+ */
+const RecallSchema = z.looseObject({ message_id: z.string().regex(/^om_[a-zA-Z0-9_-]+$/), recall_time: z.string().optional() })
+/** The Trigger a recall withdraws and when, from a recall event in either the flat or the nested shape the consumer prints. */
+export function feishuRecall(input: unknown): { triggerId: string; at: string } {
+  const flat = z.looseObject({ event: z.unknown() }).safeParse(input)
+  const event = RecallSchema.parse(flat.success && flat.data.event && typeof flat.data.event === 'object' ? flat.data.event : input)
+  return { triggerId: feishuTriggerId(event.message_id), at: event.recall_time ? feishuTime(event.recall_time) : new Date().toISOString() }
+}

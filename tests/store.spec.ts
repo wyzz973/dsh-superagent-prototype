@@ -262,3 +262,16 @@ it('reads `%` and `_` in a key prefix and a search query as written, not as patt
   expect([store.read.search('50%').map(item => item.id), store.read.search('a_b').map(item => item.id)]).toEqual([['p'], ['r']])
   store.close()
 })
+
+it('finds the receipts queued for a conversation by its exact address, and records a sent one taken back', () => {
+  const store = new Store(join(mkdtempSync(join(tmpdir(), 'receipts-')), 'db.sqlite'))
+  const channel = { source: 'feishu', thread: 'feishu:oc_1', address: { chatId: 'oc_1', messageId: 'om_1' } }
+  store.receipts.add({ id: 'ack', channel, text: 'On it', kind: 'acknowledgement', ticketId: 't' })
+  store.receipts.settle({ id: 'ack', channel, text: 'On it', kind: 'acknowledgement', ticketId: 't' }, 'sent', 'om_reply')
+  store.receipts.add({ id: 'other', channel: { ...channel, address: { chatId: 'oc_1', messageId: 'om_2' } }, text: 'x', kind: 'reply' })
+  // Key order does not matter, the address does.
+  expect(store.receipts.to({ ...channel, address: { messageId: 'om_1', chatId: 'oc_1' } }).map(receipt => [receipt.id, receipt.remote]))
+    .toEqual([['ack', 'om_reply']])
+  store.receipts.retracted('ack', 'retracted')
+  expect(store.receipts.get('ack')).toMatchObject({ status: 'sent', remote: 'om_reply', retracted: { outcome: 'retracted' } })
+})

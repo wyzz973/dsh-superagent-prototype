@@ -8,15 +8,16 @@ import { feishuChatLink } from './feishu-channel.ts'
 import type { FeishuBot } from '../deployment.ts'
 import { validItems, type Tally } from '../infra/commands.ts'
 import { readFeishu, type FeishuRef } from './feishu-read.ts'
-import { feishuRef, feishuTime, feishuTrigger, HistoricalMessageSchema, historyEvent, HistoryPageSchema, SOURCE, topicEvent }
-  from './feishu-trigger.ts'
+import { feishuRecall, feishuRef, feishuTime, feishuTrigger, feishuTriggerId, HistoricalMessageSchema, historyEvent, HistoryPageSchema, SOURCE,
+  topicEvent } from './feishu-trigger.ts'
 import { health, type SourceContext } from './host.ts'
 import { KV } from '../kv.ts'
 import { cursorAt, POLL_HORIZON_MS, polled, pollThreads as pollEach } from './poll.ts'
 import type { FeishuConfig } from './feishu.ts'
 
 export const runFeishu = (ctx: SourceContext, signal: AbortSignal): Promise<unknown> =>
-  Promise.allSettled([watch, backfillLoop, chatNamesLoop].map(loop => loop(ctx, signal)))
+  Promise.allSettled([(ctx: SourceContext, signal: AbortSignal) => watch(ctx, signal, MESSAGES), (ctx: SourceContext, signal: AbortSignal) =>
+    watch(ctx, signal, RECALLS), backfillLoop, chatNamesLoop].map(loop => loop(ctx, signal)))
 const enabled = (ctx: SourceContext): FeishuConfig | undefined => ctx.config<FeishuConfig>(SOURCE)
 const bot = (ctx: SourceContext): FeishuBot => {
   const resolved = ctx.deployment.feishu
@@ -39,15 +40,33 @@ function available(ctx: SourceContext): boolean {
   return false
 }
 
-/** Runs the live event consumer only while the Source is enabled; disabling it stops the consumer within five seconds. */
-async function watch(ctx: SourceContext, signal: AbortSignal): Promise<void> {
+/** What one event consumer listens to: its Feishu event type, the health entry it reports on, and what it does with an event. */
+interface Consumer { event: string; entry: 'feishu' | 'recall'; ready: string; handle(ctx: SourceContext, event: unknown): Promise<void> }
+const MESSAGES: Consumer = { event: 'im.message.receive_v1', entry: 'feishu', ready: 'Listening for bot events', async handle(ctx, event) {
+  const trigger = feishuTrigger(event, bot(ctx).botId, bot(ctx).appId)
+  // Events already read when the Source is disabled are dropped; the consumer stops shortly after.
+  if (!trigger || !enabled(ctx)) return
+  const chats = ctx.state.get(KV.feishu.chats) ?? {}
+  chats[String(trigger.meta.chatId)] = trigger.meta.direct === true
+  ctx.state.set(KV.feishu.chats, chats)
+  await receive(ctx, trigger)
+} }
+/** Recalled messages: each withdraws the Trigger it was received as (see `SourceContext.triggers.retracted`). */
+const RECALLS: Consumer = { event: 'im.message.recalled_v1', entry: 'recall', ready: 'Listening for recalled messages', async handle(ctx, event) {
+  if (!enabled(ctx)) return
+  const { triggerId, at } = feishuRecall(event)
+  ctx.triggers.retracted(triggerId, at)
+} }
+
+/** Runs a live event consumer only while the Source is enabled; disabling it stops the consumer within five seconds. */
+async function watch(ctx: SourceContext, signal: AbortSignal, consumer: Consumer): Promise<void> {
   await ctx.ready
   // Setup restarts dsh-superagent once it resolves the bot; until then nothing runs.
-  if (!available(ctx)) return
+  if (!available(ctx)) { if (consumer.entry !== 'feishu') ctx.report(consumer.entry, health('paused', 'feishuBotMissing')); return }
   let retry: number | undefined
   while (!signal.aborted) {
     if (!enabled(ctx)) {
-      ctx.report('feishu', health('paused', 'sourceOff'))
+      ctx.report(consumer.entry, health('paused', 'sourceOff'))
       await delay(5000, undefined, { signal }).catch(() => {})
       continue
     }
@@ -56,8 +75,8 @@ async function watch(ctx: SourceContext, signal: AbortSignal): Promise<void> {
     const stop = () => running.abort()
     signal.addEventListener('abort', stop, { once: true })
     const began = Date.now()
-    try { await consume(ctx, running.signal) }
-    catch (error) { if (!running.signal.aborted) ctx.report('feishu', { state: 'error', detail: String(error) }) }
+    try { await consume(ctx, running.signal, consumer) }
+    catch (error) { if (!running.signal.aborted) ctx.report(consumer.entry, { state: 'error', detail: String(error) }) }
     finally { clearInterval(check); signal.removeEventListener('abort', stop) }
     if (running.signal.aborted) continue
     retry = consumerRetry(retry, Date.now() - began)
@@ -67,33 +86,27 @@ async function watch(ctx: SourceContext, signal: AbortSignal): Promise<void> {
 /** Wait before restarting the event consumer: 1s after a run that stayed up for a minute, otherwise exponential backoff up to 60s. */
 export const consumerRetry = (previous: number | undefined, ranMs: number): number =>
   previous === undefined || ranMs >= 60_000 ? 1000 : Math.min(previous * 2, 60_000)
-async function consume(ctx: SourceContext, signal: AbortSignal): Promise<void> {
-  const child = spawn(bot(ctx).cli, ['event', 'consume', 'im.message.receive_v1', '--as', 'bot'],
+async function consume(ctx: SourceContext, signal: AbortSignal, consumer: Consumer): Promise<void> {
+  const child = spawn(bot(ctx).cli, ['event', 'consume', consumer.event, '--as', 'bot'],
     { stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, LARKSUITE_CLI_NO_UPDATE_NOTIFIER: '1',
       LARKSUITE_CLI_NO_SKILLS_NOTIFIER: '1' } })
   const stdout = createInterface({ input: child.stdout }); const stderr = createInterface({ input: child.stderr })
   let chain = Promise.resolve(); let diagnostic = ''; let ready = false
   const stop = (): void => { child.stdin.end(); child.kill('SIGTERM') }
   signal.addEventListener('abort', stop, { once: true })
-  const timeout = setTimeout(() => { diagnostic = 'Feishu event consumer did not become ready within 45 seconds'; stop() }, 45_000)
+  const timeout = setTimeout(() => { diagnostic = `Feishu event consumer of ${consumer.event} did not become ready within 45 seconds`; stop() }, 45_000)
   stderr.on('line', (line: string) => {
     diagnostic = line.slice(0, 4000)
     if (line.startsWith('[event] ready')) {
       ready = true; clearTimeout(timeout)
-      ctx.report('feishu', { state: 'ready', detail: 'Listening for bot events', at: new Date().toISOString() })
-    } else if (/WARN|drop|error/.test(line)) ctx.report('feishu', { state: 'error', detail: diagnostic })
+      ctx.report(consumer.entry, { state: 'ready', detail: consumer.ready, at: new Date().toISOString() })
+    } else if (/WARN|drop|error/.test(line)) ctx.report(consumer.entry, { state: 'error', detail: diagnostic })
   })
   stdout.on('line', (line: string) => {
     chain = chain.then(async () => {
       if (line.length > 1_048_576) throw new Error('Feishu event exceeds 1 MiB')
-      const trigger = feishuTrigger(JSON.parse(line), bot(ctx).botId, bot(ctx).appId)
-      // Events already read when the Source is disabled are dropped; the consumer stops shortly after.
-      if (!trigger || !enabled(ctx)) return
-      const chats = ctx.state.get(KV.feishu.chats) ?? {}
-      chats[String(trigger.meta.chatId)] = trigger.meta.direct === true
-      ctx.state.set(KV.feishu.chats, chats)
-      await receive(ctx, trigger)
-    }).catch(error => { ctx.report('feishu', { state: 'error', detail: String(error) }) })
+      await consumer.handle(ctx, JSON.parse(line))
+    }).catch(error => { ctx.report(consumer.entry, { state: 'error', detail: String(error) }) })
   })
   try {
     await new Promise<void>((resolve, reject) => {
@@ -250,6 +263,10 @@ async function pollThread(ctx: SourceContext, thread: Thread, signal?: AbortSign
       ctx.threads.patch(thread.key, { threadId: result.thread_id })
     }
     const encounteredKnown = result.messages.some(message => known.has(message.message_id))
+    // A message received before and now deleted was recalled; a poll finds it even when the recall event was missed.
+    for (const message of result.messages) {
+      if (message.deleted && known.has(message.message_id)) ctx.triggers.retracted(feishuTriggerId(message.message_id), new Date().toISOString())
+    }
     const { botId, appId } = bot(ctx)
     for (const message of result.messages.filter(item => !known.has(item.message_id) && !item.deleted).reverse()) {
       if (signal?.aborted) return

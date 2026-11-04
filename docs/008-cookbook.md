@@ -179,6 +179,8 @@ export async function sendWebhook(host: Pick<SourceContext, 'commands'>, message
 - **Allowed destinations.** `allowed(address, config)` checks only the saved address and current configuration. Put every required fact in the address; for example, Feishu records whether the chat is direct. A destination no longer listened to is dropped, while a disabled Source leaves messages waiting. Without `allowed`, all addresses are permitted while the Source is enabled.
 - **Links.** `link(address, links)` returns the URL and label the panel displays through `SourceRegistry.link`.
 
+- **Taking a reply back.** A kind whose service lets the bot take back what it sent returns the message's own id from `send` as `{ remote }`, and implements `retract(host, message)`, which takes it back by `message.remote` and returns `retracted`, or `gone` once it can no longer be. The Outbox calls it, as the `unsend` effect, when the message a reply answered is withdrawn (step 10). A kind without `retract` keeps what it sent.
+
 ### 6. Thread context for assessments
 
 ```ts
@@ -328,6 +330,20 @@ export async function pollQueue(ctx: SourceContext, signal: AbortSignal): Promis
 - **Abort.** Pass the signal to `ctx.commands.withSignal(signal)` and to `delay`, and check it between items, so a stop or a restart ends the loop at once.
 
 This example does not send Source-originated notices. A Source that needs them calls `ctx.notify`; Outbox delivers them like other replies.
+
+### 10. Withdrawn messages
+
+When its service says a message was recalled or deleted, a Source reports it by the id it received the message under, and the Engine does the rest (see [002 Authorization](002-authorization.md)):
+
+```ts
+// From a live event, such as `hookq` printing {"recalled": "<message id>", "at": "..."}:
+ctx.triggers.retracted(key('webhook', event.recalled), event.at)
+```
+
+- **Two ways to hear of it.** Report it from a live event where the service has one, and also from polls: a message a poll read before and now finds deleted was withdrawn, which catches an event that was missed. The call is idempotent and answers `already` the second time, and `unknown` for a message the Source never stored.
+- **The same id.** Pass the Trigger id `receive` stored, derived with `key` exactly as in step 3; an edit stored under a new version of the id is withdrawn by that id.
+- **Nothing else to do.** The Source does not end Tickets, touch Evals or withdraw replies itself: the Engine erases the text, ends what holds it, holds a Ticket it started for a revision, and asks the Outbox to clear the conversation, which takes back sent replies through the kind's `retract` (step 5).
+- **Health.** A separate consumer for withdrawals reports under its own declared entry, as Feishu's `recall`, so a service that does not offer the event leaves message intake healthy.
 
 It also does not bind Threads to Ticket completion. Use `ctx.tickets.bindThread` and `threadClosed` only when a Source's Thread lifecycle determines whether work is done, as GitHub pull requests do. The Engine still decides when the Ticket ends.
 

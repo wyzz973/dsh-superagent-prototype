@@ -46,9 +46,17 @@ export class Intake extends EnginePart {
       }
       this.repo.threads.save(thread)
     }
+    // A writer who withdrew the request a ticket started from and writes again in that conversation within the grace revises it.
+    const revised = new Set<string>()
+    for (const ticket of this.tickets.revisable(trigger)) {
+      if (reached.has(ticket.id)) continue
+      this.tickets.revise(ticket, trigger)
+      reached.set(ticket.id, { ticket: this.repo.tickets.get(ticket.id)!, context: false }); revised.add(ticket.id)
+    }
     for (const [ticketId, { ticket, context: followed }] of reached) {
       this.tickets.addInput(ticket, { id: key('input', ticketId, 'trigger', trigger.id), kind: 'trigger', triggerId: trigger.id, at,
-        ...trigger.human ? { human: true } : {}, ...followed ? { context: true } : {} })
+        ...trigger.human ? { human: true } : {}, ...followed ? { context: true } : {},
+        ...revised.has(ticketId) ? { note: 'This message revises the request this ticket started from, which its writer withdrew.' } : {} })
     }
     const fanout = [...reached.keys()], context = fanout.filter(id => reached.get(id)!.context)
     const disposition = { fanout, ...context.length ? { context } : {}, at }

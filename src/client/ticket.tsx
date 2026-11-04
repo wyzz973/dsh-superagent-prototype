@@ -2,6 +2,7 @@
 import { useState, type ReactNode } from 'react'
 import { ApiError, usePoll, type TicketPageView } from './api.ts'
 import { DisclosureRow, Dot, Icon, Tag, type IconName } from './controls.tsx'
+import { JourneySteps, MessageFlow } from './journey.tsx'
 import { decisionMark, reportDot, ticketMark } from './marks.ts'
 import { usePanel } from './provider.tsx'
 import { settingsRoute } from './route.ts'
@@ -141,6 +142,7 @@ export function TicketPage({ id }: { id: string }) {
       <LabelValue label={t('ticketUpdatedLabel')} value={when(data.updatedAt, t('lang'))} />
     </div>
     {ended && <Hint>{ended}</Hint>}
+    <JourneySteps journey={data.journey} outcome={data.ended ? valueLabel(t, 'outcome', data.ended.outcome) : undefined} />
     {data.attention && <div className="dt-banner"><span className="dt-banner-label">{t('attentionPrefix')}</span><MarkdownLite
       text={data.attention.question} />
       {channel && <div className="dt-banner-actions">
@@ -153,6 +155,7 @@ export function TicketPage({ id }: { id: string }) {
     {data.deliveryError && <p className="dt-banner dt-danger dt-mono">
       <span className="dt-banner-label">{t('deliveryFailedPrefix')}</span>{data.deliveryError}
     </p>}
+    <MessageFlow journey={data.journey} />
     <MandateDetails ticket={data} actor={actor} />
     {undelivered.length > 0 && <Section title={t('undeliveredInputs')} count={undelivered.length}>
       <Hint>{data.deliveryError ? t('inputRetryHint') : data.paused ? t('inputPausedHint') : t('inputWaitingHint')}</Hint>

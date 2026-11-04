@@ -39,7 +39,8 @@ function TriggerItem({ trigger, earlier, target, subscribed, requeue }: {
     : ' dt-event-quiet'}`} ref={scroll}>
     <div className="dt-event-foot"><strong className="dt-event-actor">{actorName(t, trigger.actor)}</strong><When
       at={trigger.at} /></div>
-    <ClampText text={readableMarkers(t, trigger.text || trigger.preview)} />
+    {trigger.retracted ? <p className="dt-event-text dt-retracted">{t('flow.retracted')}</p>
+      : <ClampText text={readableMarkers(t, trigger.text || trigger.preview)} />}
     <Earlier items={earlier} />
     {trigger.disposition.handbacks.map(item => <Hint key={item.ticketId}>{t('handedBack', { ticket: item.title,
       reason: item.reason })}</Hint>)}

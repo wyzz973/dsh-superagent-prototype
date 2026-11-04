@@ -34,6 +34,8 @@ Read the numbered documents in order; each builds only on the ones before it.
 
 `pnpm check` runs the typecheck, the tests and the build.
 
+`pnpm preview` opens the panel on demo records at http://127.0.0.1:4173/, outside DeepSeek Harness: a small team's Tickets in every stage, moved along every few seconds so the board, the activity and a Ticket's journey can be watched changing. `?lang=en` and `?theme=dark` pick the language and theme; `node preview/dist/server.mjs --still` keeps the records still.
+
 ## License
 
 [MIT](LICENSE)

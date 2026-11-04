@@ -105,6 +105,10 @@ Chat Channels receive one final notice about the pull-request outcome. GitHub al
 
 "Awaiting review" therefore means a `ready` Report with a pull request.
 
+### A withdrawn request
+
+When the message a Ticket started from is withdrawn (see [002 Authorization](002-authorization.md)), the Ticket keeps its stage and waits two minutes for a revision; the board shows the countdown. A revision continues it. Without one, a Ticket whose worker never started ends `stopped`, with the reason `retracted`; otherwise its worker receives a notice to stop at a safe point and reports `dropped`, which ends it. A pull request it opened is closed by the worker, not by the host.
+
 ### Follow-ups and context Threads
 
 The Executor decides human follow-ups on its Ticket's own Threads. It handles in-scope requests and hands back requests beyond its scope or for another Ticket. Once no Executor owns the message, it becomes a candidate for the main Session. The main Session may otherwise act on the follow-up only to stop work at the person's request.
@@ -182,7 +186,7 @@ Messages of other Tickets, and messages of no Ticket, do not wait for it.
 
 A message with failed attempts is a system problem until it goes out or is withdrawn.
 
-A message is dropped only when its Source no longer listens to the conversation, or when the Source answers that the conversation can never receive it; while its Source is off, it waits.
+A message that answers a withdrawn message is withdrawn while it waits; one already sent is taken back through its Channel where its Source can (`unsend`, retried with the same backoff), and otherwise stays. A message is dropped only when its Source no longer listens to the conversation, or when the Source answers that the conversation can never receive it; while its Source is off, it waits.
 
 The Sources answer that for a deleted Issue or a locked conversation on GitHub, and for a recalled message or one Feishu no longer finds on Feishu.
 

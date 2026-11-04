@@ -15,7 +15,12 @@ export interface TimelinePlace { at: string; id: string }
 /** Why a message was dropped: its conversation can never receive it (`channelGone`), or its Source no longer listens to it (`channelIgnored`). */
 export type DropReason = 'channelGone' | 'channelIgnored'
 /** Outbound message receipt tracked in the outbox from the moment it is queued (`pending`, `sent`, or `dropped`); delivery attempt counts live on its `reply` effect. */
-export interface Receipt extends OutboundMessage { status: ReplyStatus; dropped?: { at: string; reason: DropReason } }
+/**
+ * `queuedAt` and `sentAt` are recorded since the team views, receipts written before have neither; `remote` is the id its
+ * Source gave a sent message it can take back, and `retracted` when it was taken back, after the message it answered was withdrawn.
+ */
+export interface Receipt extends OutboundMessage { status: ReplyStatus; dropped?: { at: string; reason: DropReason }; queuedAt?: string; sentAt?: string
+  remote?: string; retracted?: { at: string; outcome: 'retracted' | 'gone' } }
 /** A dropped outbound message receipt, with the timestamp and reason it was dropped. */
 export type Dropped = Receipt & { dropped: { at: string; reason: DropReason } }
 /** Saved settings snapshot with the policy version and ticket notifications it produced (`internal` saves have no origin). */
@@ -264,15 +269,16 @@ export class Store implements Repositories {
      * @returns Whether the message ID was newly recorded.
      */
     add: (message: OutboundMessage): boolean => {
-      const receipt: Receipt = { ...message, status: 'pending' }
+      const receipt: Receipt = { ...message, status: 'pending', queuedAt: new Date().toISOString() }
       return Number(this.db.prepare('INSERT OR IGNORE INTO outbox (id, value) VALUES (?, ?)').run(message.id, JSON.stringify(receipt)).changes) > 0
     },
     /**
      * Marks a pending receipt as sent or dropped (with drop reason and timestamp), recreating the receipt if the message
      * was withdrawn while being sent so its ID cannot be queued again.
      */
-    settle: (message: OutboundMessage, outcome: 'sent' | DropReason): void => {
-      const settled = outcome === 'sent' ? { status: 'sent' } : { status: 'dropped', dropped: { at: new Date().toISOString(), reason: outcome } }
+    settle: (message: OutboundMessage, outcome: 'sent' | DropReason, remote?: string): void => {
+      const at = new Date().toISOString()
+      const settled = outcome === 'sent' ? { status: 'sent', sentAt: at, ...remote ? { remote } : {} } : { status: 'dropped', dropped: { at, reason: outcome } }
       const { id, channel, text, kind, ticketId } = message
       const updated = this.db.prepare("UPDATE outbox SET value = json_patch(value, ?) WHERE id = ? AND value ->> '$.status' = 'pending'")
         .run(JSON.stringify(settled), id)
@@ -283,6 +289,16 @@ export class Store implements Repositories {
      * Withdraws a pending message that has not yet been sent.
      * @returns Whether a pending message with `id` was waiting and removed.
      */
+    /** The receipts of the messages queued for `channel`, by its exact address, oldest first. */
+    to: (channel: ChannelRef): Receipt[] => {
+      const address = (value: Record<string, string>) => JSON.stringify(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)))
+      return this.values<Receipt>("SELECT value FROM outbox WHERE value ->> '$.channel.source' = ? AND value ->> '$.channel.thread' = ? ORDER BY rowid",
+        channel.source, channel.thread).filter(receipt => address(receipt.channel.address) === address(channel.address))
+    },
+    /** Records that a sent message was taken back, or could no longer be. */
+    retracted: (id: string, outcome: 'retracted' | 'gone'): void => {
+      this.db.prepare('UPDATE outbox SET value = json_patch(value, ?) WHERE id = ?').run(JSON.stringify({ retracted: { at: new Date().toISOString(), outcome } }), id)
+    },
     withdraw: (id: string): boolean =>
       Number(this.db.prepare("DELETE FROM outbox WHERE id = ? AND value ->> '$.status' = 'pending'").run(id).changes) > 0,
   }

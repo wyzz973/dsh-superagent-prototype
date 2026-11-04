@@ -1405,3 +1405,36 @@ describe('observing the GitHub repository', () => {
     h.store.close()
   })
 })
+
+describe('Feishu recalls', () => {
+  it('reads a recall event, flat or nested, as the Trigger it withdraws and when', async () => {
+    const { feishuRecall } = await import('../src/sources/feishu-trigger.ts')
+    expect(feishuRecall({ message_id: 'om_1', recall_time: '1790000000000', recall_type: 'message_owner' }))
+      .toEqual({ triggerId: key('feishu', 'om_1'), at: new Date(1790000000000).toISOString() })
+    expect(feishuRecall({ header: {}, event: { message_id: 'om_2', recall_time: '1790000000000' } }).triggerId).toBe(key('feishu', 'om_2'))
+    expect(() => feishuRecall({ message_id: 'not-a-message' })).toThrow()
+  })
+  it('withdraws a reply a poll received before and now finds deleted, even when the recall event was missed', async () => {
+    const h = host()
+    const source = feishuTrigger({ message_id: 'om_root', chat_id: 'oc_1', chat_type: 'group', sender_id: MEMBER, sender_type: 'user',
+      content: '@bot fix', create_time: '1', mentions: [{ id: 'ou_bot' }] }, 'ou_bot', 'cli_bot')!
+    h.store.triggers.save(source)
+    subscribed(h, source.threads[0]!, { chatId: 'oc_1', messageId: 'om_root', sourceTriggerId: source.id })
+    h.store.threads.save({ ...h.store.threads.get('feishu:oc_1:om_root')!, createdAt: '2025-09-01T00:00:00Z', lastAt: new Date().toISOString() })
+    const reply = { message_id: 'om_reply', chat_id: 'oc_1', msg_type: 'text', content: 'please use the red one', sender: { id: MEMBER,
+      sender_type: 'user' }, create_time: '1757376000000', thread_id: 'omt_1', root_id: 'om_root', mentions: [] }
+    let page: Record<string, unknown>[] = [reply]
+    vi.spyOn(h.commands, 'lark').mockImplementation(async args => {
+      if (args[0] === 'api') return { items: [{ message_id: 'om_root', chat_id: 'oc_1', thread_id: 'omt_1' }] }
+      if (args[1] === '+messages-mget') return { messages: [] }
+      return { thread_id: 'omt_1', has_more: false, messages: page }
+    })
+    await pollFeishuThreads(h)
+    expect(h.store.triggers.get(key('feishu', 'om_reply'))?.text).toBe('please use the red one')
+    page = [{ ...reply, deleted: true, content: undefined }]
+    await pollFeishuThreads(h)
+    expect(h.store.triggers.disposition(key('feishu', 'om_reply'))?.retracted).toBeDefined()
+    expect(h.store.triggers.get(key('feishu', 'om_reply'))?.text).toBe('')
+    h.store.close()
+  })
+})

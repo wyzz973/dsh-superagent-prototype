@@ -146,11 +146,18 @@ function policyMessage(effect?: PolicyEffect): string {
     ...effect.requesterAllowed === false ? [`The sender this ticket is for, ${effect.requester ? `${effect.requester.id} on ${effect.requester.source}` : 'who '
       + 'asked for it'}, may no longer start work here: finish the assignment within its scope, and take no new requests from them on it.`] : []].join('\n')
 }
+/** What a worker is told when the request its ticket started from was withdrawn and no revision came within the grace. */
+const WITHDRAWN = 'The person withdrew the request this ticket started from (they recalled or deleted the message) and sent no revision. '
+  + 'Stop at a safe point and take on nothing new: close a pull request you opened for this ticket with one sentence saying the request was '
+  + 'withdrawn, then report dropped. Do not message the conversation, and do not quote the withdrawn text anywhere.'
+/** What a worker is told when a later message on its ticket was withdrawn: it asks for nothing any more. */
+const withdrawnLater = (triggerId: string) => `Its writer withdrew message ${triggerId} on this ticket's threads (recalled or deleted). `
+  + 'Whatever it asked no longer stands: do not act on it, answer it or quote it, and go on with the rest of the ticket.'
 /** Resource path under which a worker session reads the full text of a ticket input. */
 export const inputResource = (ticketId: string, inputId: string): string => `ticket/${ticketId}/input/${key(inputId)}`
 /**
  * Formats a ticket input for worker delivery: a `trigger` rendered via `trigger` (or by its ID and read path when absent),
- * a `policy-changed` notice, a `resumed` notice, an orchestrator `note`, or a `text` input as written.
+ * a `policy-changed` notice, a `resumed` notice, an orchestrator `note`, a withdrawn message (`retracted`), or a `text` input as written.
  * Returns `undefined` for legacy `reopen` inputs, which are historical only because the schema 11 migration converted pending reopen inputs into text inputs.
  */
 export function inputMessage(input: TicketInput, trigger?: object): string | undefined {
@@ -160,6 +167,7 @@ export function inputMessage(input: TicketInput, trigger?: object): string | und
   if (input.kind === 'policy-changed') return policyMessage(input.effect)
   if (input.kind === 'resumed') return RESUMED
   if (input.kind === 'note') return `Note from the orchestrator, for context only: ${input.text}`
+  if (input.kind === 'retracted') return input.origin ? WITHDRAWN : withdrawnLater(input.triggerId)
   return input.kind === 'text' ? input.text : undefined
 }
 /**

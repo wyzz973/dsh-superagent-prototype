@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
-import { Engine, MemoryRepositories, UserError, followupOwners, key, runningAssignment, ticketOutcome, ticketStage,
+import { EARLIER_REPORTS, RETRACTION_GRACE_MS, Engine, MemoryRepositories, UserError, followupOwners, key, runningAssignment, ticketOutcome, ticketStage,
   waitsForPerson } from '../src/core/index.ts'
-import type { Assessor, Assignment, Candidate, EngineOptions, Executor, OutboundMessage, Outcome, Policy, Ticket, Trigger } from '../src/core/index.ts'
+import type { Assessor, Assignment, Candidate, ChannelRef, EngineOptions, Executor, OutboundMessage, Outcome, Policy, Ticket, Trigger } from '../src/core/index.ts'
 
 const member = { source: 'chat', id: 'alice' }
 const guest = { source: 'chat', id: 'guest' }
@@ -16,6 +16,8 @@ function harness(policyOverrides: Partial<Policy> = {}, { emit, prepareTicket }:
   const repo = new MemoryRepositories()
   const outbox: OutboundMessage[] = []
   const withdrawn: string[] = []
+  /** Channels the Engine asked the Outbox to clear because the message they answer was withdrawn. */
+  const retractedTo: ChannelRef[] = []
   const requests: Candidate[] = []
   const assessor: Assessor = { request: vi.fn(candidate => { requests.push(candidate) }), release: vi.fn() }
   const launches: [Ticket, Assignment][] = []
@@ -39,6 +41,7 @@ function harness(policyOverrides: Partial<Policy> = {}, { emit, prepareTicket }:
     send: message => { if (!outbox.some(item => item.id === message.id)) outbox.push(message) },
     status: id => outbox.some(item => item.id === id) ? 'pending' : undefined,
     withdraw: id => { withdrawn.push(id) },
+    retractTo: channel => { retractedTo.push(channel) },
   }
   const engine = new Engine({ repo, scope, policy: () => policy, assessor, executor, outbox: queued,
     ...emit ? { emit } : {}, ...prepareTicket ? { prepareTicket } : {}, now: () => new Date(Date.UTC(2026, 8, 23, 0, 0, clock)).toISOString() })
@@ -61,7 +64,7 @@ function harness(policyOverrides: Partial<Policy> = {}, { emit, prepareTicket }:
   const read = (ticketId: string) => engine.inputsRead(ticketId, repo.tickets.get(ticketId)!.inputs.flatMap(input =>
     input.kind === 'trigger' && input.readAt === null ? [input.id] : []))
   const decide = (candidate: Candidate, outcome: Outcome) => engine.decide(candidate.triggers[0]!.id, { ...outcome, evalId: candidate.evalId })
-  return { repo, engine, outbox, withdrawn, requests, assessor, executor, delivered, settle, pump, read, decide,
+  return { repo, engine, outbox, withdrawn, retractedTo, requests, assessor, executor, delivered, settle, pump, read, decide,
     setVersion: (value: string) => { version = value }, setPaused: (value: boolean) => { paused = value }, tick: (seconds: number) => { clock += seconds } }
 }
 function accepted(h: ReturnType<typeof harness>, id = '1', thread = 't1') {
@@ -776,6 +779,18 @@ describe('policy change', () => {
 })
 
 describe('worker reports', () => {
+  it('keeps the reports a later one replaced, oldest first and bounded, so a Ticket\'s journey can show its steps', () => {
+    const h = harness()
+    const ticketId = accepted(h).ticketId!
+    h.engine.report(ticketId, { state: 'progress', summary: 'reproduced' })
+    h.engine.report(ticketId, { state: 'progress', summary: 'fixing' })
+    h.engine.report(ticketId, { state: 'blocked', summary: 'needs a key' })
+    const assignment = h.repo.tickets.get(ticketId)!.assignments.at(-1)!
+    expect(assignment.report).toMatchObject({ state: 'blocked', summary: 'needs a key' })
+    expect(assignment.earlier?.map(report => report.summary)).toEqual(['reproduced', 'fixing'])
+    for (let index = 0; index < EARLIER_REPORTS + 5; index++) h.engine.report(ticketId, { state: 'progress', summary: `step ${index}` })
+    expect(h.repo.tickets.get(ticketId)!.assignments.at(-1)!.earlier).toHaveLength(EARLIER_REPORTS)
+  })
   it('asks, keeps, replaces and clears the question for a person, and says which question a report replaced', () => {
     const h = harness()
     const ticketId = accepted(h).ticketId!
@@ -1617,5 +1632,102 @@ describe('ignores from the card', () => {
     // Accepting an inferred candidate still takes an assessment's matched rules.
     h.engine.receive(trigger('5', { actor: guest })); h.engine.reevaluate('5'); h.pump()
     expect(() => h.engine.decide('5', { kind: 'accept', title: 'Fix', scope: 'small', reason: 'chat' })).toThrow(new UserError('notExplicit'))
+  })
+})
+
+describe('retractions', () => {
+  it('lets a withdrawn message waiting for Eval go as ignored, refuses to decide it, erases it, and is idempotent', () => {
+    const h = harness()
+    h.engine.receive(trigger('1'))
+    expect(h.engine.retracted('1', '2026-09-23T00:00:05Z')).toBe('retracted')
+    expect(h.repo.threads.get('chat:t1')!.pending).toEqual([])
+    expect(h.repo.decisions.byThread('chat:t1').at(-1)).toMatchObject({ kind: 'ignore', reason: [{ code: 'retracted', triggerId: '1' }] })
+    expect(h.repo.triggers.get('1')!.text).toBe('')
+    expect(h.repo.triggers.disposition('1')!.retracted).toEqual({ at: '2026-09-23T00:00:05.000Z' })
+    expect(h.retractedTo).toEqual([trigger('1').channel])
+    expect(() => h.engine.decide('1', { kind: 'accept', title: 'Fix', scope: 'small', reason: 'requested' })).toThrow(UserError)
+    expect(h.engine.retracted('1', '2026-09-23T00:00:06Z')).toBe('already')
+    expect(h.engine.retracted('nope', '2026-09-23T00:00:06Z')).toBe('unknown')
+  })
+
+  it('ends the Eval that holds a withdrawn message, and evaluates the rest of its batch again without it', () => {
+    const h = harness()
+    h.engine.receive(trigger('1')); h.engine.receive(trigger('2')); h.pump()
+    const evalId = h.requests.at(-1)!.evalId
+    expect(h.repo.threads.get('chat:t1')!.evaluating?.triggerIds).toEqual(['1', '2'])
+    h.engine.retracted('1', '2026-09-23T00:00:05Z')
+    expect(h.repo.threads.get('chat:t1')).toMatchObject({ pending: ['2'] })
+    expect(h.repo.threads.get('chat:t1')!.evaluating).toBeUndefined()
+    expect(h.assessor.release).toHaveBeenCalledWith(evalId)
+    h.pump()
+    expect(h.requests.at(-1)!.triggers.map(item => item.id)).toEqual(['2'])
+  })
+
+  it('carries a ticket on with its writer\'s revision within the grace, answering where the revision was written', () => {
+    const h = harness()
+    const ticketId = accepted(h).ticketId!
+    h.engine.retracted('1', '2026-09-23T00:00:00Z')
+    expect(h.repo.tickets.get(ticketId)!.retraction).toMatchObject({ triggerId: '1', until: '2026-09-23T00:02:00.000Z' })
+    // The writer sends the corrected request as a new message in the same conversation.
+    h.tick(30)
+    const revision = trigger('7', { threads: [{ source: 'chat', id: 't2' }], channel: { source: 'chat', thread: 't1', address: { message: '7' } } })
+    h.engine.receive(revision); h.pump()
+    const ticket = h.repo.tickets.get(ticketId)!
+    expect(ticket.retraction?.revisedBy).toBe('7')
+    expect(ticket.channels[0]).toEqual(revision.channel)
+    expect(ticket.inputs.find(input => input.kind === 'trigger' && input.triggerId === '7')).toMatchObject({ note: expect.stringContaining('revises') })
+    // It reached the ticket, so no Eval takes it; the grace passing changes nothing now.
+    expect(h.repo.threads.get('chat:t2')!.pending).toEqual([])
+    h.tick(200); h.pump()
+    expect(h.repo.tickets.get(ticketId)!.ended).toBeUndefined()
+    h.engine.report(ticketId, { state: 'ready', summary: 'done' })
+    h.engine.reply({ purpose: 'result', ticketId, text: 'Done' })
+    expect(h.outbox.at(-1)!.channel).toEqual(revision.channel)
+  })
+
+  it('does not take a message from someone else, or one after the grace, as a revision', () => {
+    const h = harness()
+    const ticketId = accepted(h).ticketId!
+    h.engine.retracted('1', '2026-09-23T00:00:00Z')
+    h.engine.receive(trigger('7', { actor: guest, threads: [{ source: 'chat', id: 't2' }] }))
+    h.tick(RETRACTION_GRACE_MS / 1000 + 1)
+    h.engine.receive(trigger('8', { threads: [{ source: 'chat', id: 't3' }] }))
+    expect(h.repo.tickets.get(ticketId)!.retraction?.revisedBy).toBeUndefined()
+    expect(h.repo.threads.get('chat:t3')!.pending).toEqual(['8'])
+  })
+
+  it('ends a ticket no worker started once the grace passes, and tells a working one to stop at a safe point', () => {
+    const queuedOnly = harness()
+    queuedOnly.engine.receive(trigger('1')); queuedOnly.pump()
+    queuedOnly.decide(queuedOnly.requests.at(-1)!, { kind: 'accept', title: 'Fix', scope: 'small', reason: 'requested' })
+    const idle = queuedOnly.repo.tickets.open()[0]!.id
+    queuedOnly.engine.retracted('1', '2026-09-23T00:00:00Z')
+    queuedOnly.tick(RETRACTION_GRACE_MS / 1000); queuedOnly.engine.evaluateDue()
+    expect(queuedOnly.repo.tickets.get(idle)!.ended).toMatchObject({ by: 'human', outcome: 'stopped', reason: 'retracted' })
+    expect(queuedOnly.repo.tickets.get(idle)!.retraction?.settled).toBe('ended')
+
+    const h = harness()
+    const ticketId = accepted(h).ticketId!
+    h.engine.retracted('1', '2026-09-23T00:00:00Z')
+    h.tick(RETRACTION_GRACE_MS / 1000); h.pump()
+    const ticket = h.repo.tickets.get(ticketId)!
+    expect(ticket.ended).toBeUndefined()
+    expect(ticket.retraction?.settled).toBe('told')
+    expect(ticket.inputs.at(-1)).toMatchObject({ kind: 'retracted', triggerId: '1', origin: true })
+    expect(h.delivered.at(-1)).toEqual([ticketId, ticket.inputs.at(-1)!.id])
+  })
+
+  it('drops a withdrawn follow-up the worker has not received, and tells it of one it has', () => {
+    const h = harness()
+    const ticketId = accepted(h).ticketId!
+    h.engine.receive(trigger('2'))
+    const waiting = h.repo.tickets.get(ticketId)!.undelivered
+    expect(waiting).toHaveLength(1)
+    h.engine.retracted('2', '2026-09-23T00:00:03Z')
+    expect(h.repo.tickets.get(ticketId)!.undelivered).toEqual([])
+    h.engine.receive(trigger('3')); h.settle()
+    h.engine.retracted('3', '2026-09-23T00:00:04Z')
+    expect(h.repo.tickets.get(ticketId)!.inputs.at(-1)).toMatchObject({ kind: 'retracted', triggerId: '3' })
+    expect(h.repo.tickets.get(ticketId)!.inputs.at(-1)).not.toHaveProperty('origin')
   })
 })

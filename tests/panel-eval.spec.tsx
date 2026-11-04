@@ -1,12 +1,14 @@
 // @vitest-environment jsdom
 // The Eval status and settings.
 import { act } from 'react'
-import { expect, it } from 'vitest'
+import { beforeEach, expect, it } from 'vitest'
 import { en, zh } from '../src/client/locales.ts'
-import { usePanel, mount, remount, settle, all, find, tab, click, type, text, field } from './fixtures/panel.tsx'
+import { usePanel, mount, remount, settle, all, find, tab, click, type, text, field, at } from './fixtures/panel.tsx'
 import { server } from './fixtures/panel-server.ts'
 
 usePanel()
+// The board is the home page; these pages begin where the overview links from.
+beforeEach(() => { at({ page: 'overview' }) })
 it('opens the Decisions under Policy from the flow line with their reasons, Decisions that start work first, filterable by kind',
   async () => {
   await mount()

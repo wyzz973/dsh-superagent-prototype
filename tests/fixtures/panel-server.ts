@@ -12,6 +12,7 @@ import type { DroppedReply, HistoryView, Problem, PromptsView, SetupView, Source
   ThreadRow, TicketPageView,
   TicketRow, TicketStage,
   TriggerRow } from '../../src/client/api.ts'
+import { BOARD_COLUMNS } from '../../src/app/views/team.ts'
 import { SETUP_FIELDS } from '../../src/deployment.ts'
 import { EvalConfigSchema, ExecutorConfigSchema, PolicyConfigSchema, SettingsSchema } from '../../src/policy.ts'
 import { SetupError, type SetupCode } from '../../src/setup.ts'
@@ -108,6 +109,7 @@ export interface PanelServer {
   opened: string[]
   dropped: DroppedReply[]
   failing: Extract<Problem, { kind: 'outgoing' }>['outgoing'][]
+  board: ApiResponse<'GET board'>; team: ApiResponse<'GET team'>; engine: ApiResponse<'GET engine'>
 }
 export let server: PanelServer
 
@@ -176,6 +178,32 @@ const settingsView = (): ApiResponse<'GET settings'> => ({
     { owner: 'github', enabled: false, variables: [{ key: 'DSH_SUPERAGENT_GITHUB_REPOSITORY', description: { zh: '仓库',
       en: 'Repository' } }] }] },
 })
+type BoardCard = ApiResponse<'GET board'>['columns'][number]['cards'][number]
+/** A board card for a ticket row, requested by Alice unless `fields` says otherwise. */
+export const boardCard = (row: TicketRow, fields: Partial<BoardCard> = {}): BoardCard => ({ ...row,
+  column: row.stage === 'ended' ? 'done' : row.stage === 'working' ? row.action === 'queued' ? 'queued' : 'working' : row.stage,
+  requester: { key: `feishu:${MEMBER}`, ...actor('feishu', MEMBER) }, report: undefined, followups: 0, messages: 1, ...fields }) as BoardCard
+/** The board of the fixture's tickets, each in the column of its stage. */
+function boardOf(rows: TicketRow[]): ApiResponse<'GET board'> {
+  const cards = rows.map(row => boardCard(row))
+  return { days: 7, columns: BOARD_COLUMNS.map(id => ({ id, cards: cards.filter(card => card.column === id) })),
+    people: [{ key: `feishu:${MEMBER}`, ...actor('feishu', MEMBER) }] }
+}
+const teamOf = (): ApiResponse<'GET team'> => ({ days: 14,
+  agent: { account: 'agent-bot', running: 1, queued: 0, maxWorkers: 4, paused: false, open: 2, waiting: 1, delivered: 3, total: 6 },
+  members: [{ key: `feishu:${MEMBER}`, actor: actor('feishu', MEMBER), requested: 4, open: 2, waiting: 1, delivered: 2, inferred: 0,
+    lastAt: '2026-09-23T00:00:00Z' }],
+  activity: [{ kind: 'created', at: '2026-09-23T00:00:00Z', ticket: { id: 't1', title: '修复回归' }, actor: actor('feishu', MEMBER),
+    strength: 'explicit' }],
+  insights: { created: 4, delivered: 3, merged: 2, closed: 1, stopped: 0, dropped: 0, mergeRate: 2 / 3, leadMs: 5_400_000, firstPass: 2 / 3,
+    messagesPerTicket: 2, proactive: 1, wouldAccept: 2, sources: { feishu: 3, github: 1 },
+    series: { created: ['2026-09-22T00:00:00Z'], delivered: ['2026-09-23T00:00:00Z'] } } })
+const engineOf = (): ApiResponse<'GET engine'> => ({ days: 1,
+  sources: [{ id: 'feishu', title: { zh: '飞书', en: 'Feishu' }, received: 9 }, { id: 'github', title: { zh: 'GitHub', en: 'GitHub' }, received: 3 }],
+  received: 12, filtered: 2, passed: 10, fanout: 3, retracted: 1,
+  eval: { evaluating: 1, queued: 0, judged: 6, accepted: 2, ignored: 4, wouldAccept: 1, unavailable: 0, stopped: 0 },
+  tickets: { open: 2, created: 2, queued: 0, working: 1, person: 1, idle: 0 },
+  executor: { account: 'agent-bot', running: 1, queued: 0, maxWorkers: 4, paused: false }, ended: { delivered: 1, other: 0 }, replies: 4 })
 const overviewView = (): ApiResponse<'GET overview'> => {
   const { problem, feishuProblem } = server.setup
   const setup = problem ?? feishuProblem
@@ -209,6 +237,10 @@ const ticketDetail = (): TicketPageView => ({
   mandate: { strength: 'explicit', policyVersion: 'abcdef1234567890', basis: { via: 'addressed', sender: 'Alice', addressed: 'mention' },
     actor: actor('feishu', MEMBER), scope: '修复登录页回归' },
   basis: { facts: [{ name: 'sender', value: 'Alice' }, { name: 'addressed', value: 'mention' }], legacy: false },
+  journey: { steps: [{ key: 'received', state: 'done', at: '2026-09-22T00:00:00Z' }, { key: 'accepted', state: 'done', at: '2026-09-22T00:00:10Z' },
+    { key: 'working', state: 'current', at: '2026-09-22T00:01:00Z' }, { key: 'review', state: 'todo' }, { key: 'ended', state: 'todo' }],
+  messages: [{ id: '1', lane: 'person', at: '2026-09-22T00:00:00Z', kind: 'origin', text: '登录页回归了', actor: actor('feishu', MEMBER),
+    source: 'feishu' }, { id: 'ack', lane: 'agent', at: '2026-09-22T00:00:12Z', kind: 'acknowledgement', text: '我来修复登录页', source: 'feishu' }] },
   environment: [{ key: 'DSH_SUPERAGENT_DIR', value: '/w/t1', description: { zh: '执行目录', en: 'Directory' }, owner: 'executor' },
     { key: 'DSH_SUPERAGENT_GITHUB_NUMBER', value: '', description: { zh: '编号', en: 'Number' }, owner: 'github' }],
   channels: [{ source: 'feishu', url: 'https://applink.feishu.cn/client/chat/open?openChatId=oc_1', label: { zh: '飞书消息',
@@ -257,6 +289,7 @@ function initial(): PanelServer {
       defaults: defaultPrompts(), parts: Object.entries(builtInParts()).map(([key, part]) => ({ key, ...part, base: builtInBase(part.text) })),
       defaultChanged: [], revisions: [{ ...defaults, changed: [] }], sessions: [], notificationPending: false, next_offset: null },
     tickets: { open: [ticketSummary()], ended: [ended] }, ticketDetails: { t1: ticketDetail() },
+    board: boardOf([ticketSummary(), ended]), team: teamOf(), engine: engineOf(),
     threads: [threadSummary()], threadPages: threadPage,
     person: [ticketSummary({ attention: { id: 'q1', question: '需要确认按钮颜色' }, note: { text: '需要确认按钮颜色', error: false }, reply },
       { stage: 'person', action: 'answer' }),
@@ -293,6 +326,9 @@ const SourceSave = z.object({ enabled: z.boolean(), config: z.unknown() })
 const ROUTES: { [K in keyof Api]: Route<K> } = {
   'GET state': { answer: stateView },
   'GET overview': { answer: overviewView },
+  'GET board': { query: ['days'], answer: () => server.board },
+  'GET team': { query: ['days'], answer: () => server.team },
+  'GET engine': { query: ['days'], answer: () => server.engine },
   'GET search': { query: ['q'], answer: async ({ query }) => {
     const q = query.q ?? ''
     await server.searching?.(q)

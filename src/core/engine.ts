@@ -14,6 +14,8 @@ export type { EngineOptions } from './part.ts'
 export type { WorkerReport } from './assignments.ts'
 export type { Outcome } from './evals.ts'
 export type { ReceiveResult } from './intake.ts'
+/** What came of a Source's report that a Trigger was withdrawn. */
+export type RetractResult = 'retracted' | 'unknown' | 'already'
 export type { Reply, ReplyRequest } from './replies.ts'
 
 /**
@@ -47,6 +49,30 @@ export class Engine {
    */
   receive(trigger: Trigger): ReceiveResult { return this.repo.atomic(() => this.intake.receive(trigger)) }
   /**
+   * A Source's fact that a Trigger's writer withdrew it at `at`, such as by recalling an IM message or deleting a comment.
+   * Its text is erased; an Eval that holds it, or the queue that waits for one, lets it go as ignored; what still waits to go
+   * to its conversation is withdrawn and what went is taken back where the Source can; an open ticket it started waits the
+   * grace for a revision (see `Retraction`), and one it reached later drops it or is told. Idempotent by Trigger.
+   * @returns `retracted`, `unknown` for a Trigger never received, or `already` for one withdrawn before.
+   */
+  retracted(triggerId: string, at: string): RetractResult {
+    return this.repo.atomic(() => {
+      const trigger = this.repo.triggers.get(triggerId)
+      if (!trigger) return 'unknown'
+      const disposition = this.repo.triggers.disposition(triggerId)
+      if (disposition?.retracted) return 'already'
+      const when = isoTime(at)
+      this.repo.triggers.saveDisposition(triggerId, { ...disposition ?? { fanout: [], at: when }, retracted: { at: when } })
+      // What its writer withdrew is not kept: the Trigger keeps its id, Threads and times, so the record still reads in order.
+      this.repo.triggers.save({ ...trigger, text: '' })
+      this.evals.retracted(trigger)
+      const tickets = this.tickets.retracted(trigger, when)
+      if (trigger.channel) this.options.outbox.retractTo?.(trigger.channel)
+      this.options.emit?.({ type: 'trigger.retracted', at: when, data: { triggerId, tickets } })
+      return 'retracted'
+    })
+  }
+  /**
    * A Source's request to make an open ticket follow one of its Threads, such as a pull request's, `own` when the ticket
    * opened it: the ticket subscribes to it, and a ready report ends it only once `followsDone` holds (see `Tickets.followsDone`).
    * @throws UserError when the ticket is unknown or has ended.
@@ -78,6 +104,13 @@ export class Engine {
     if (policy.paused) return
     for (const ticket of this.repo.tickets.active()) {
       if (!liveTicket(ticket) && ticket.undelivered.length) this.repo.atomic(() => { this.tickets.wake(ticket.id) })
+    }
+    const now = this.options.now?.() ?? new Date().toISOString()
+    for (const ticket of this.repo.tickets.open()) {
+      const retraction = ticket.retraction
+      if (retraction && !retraction.revisedBy && !retraction.settled && retraction.until <= now) {
+        this.repo.atomic(() => { this.tickets.retractionDue(ticket.id) })
+      }
     }
     for (const thread of this.repo.threads.active()) {
       if (thread.pending.length && !thread.evaluating) this.repo.atomic(() => { this.evals.start(thread.key, policy) })
@@ -111,6 +144,7 @@ export class Engine {
       // A message this ticket's worker handed back is not its work: attached here, no worker would decide it, and it could not be handed back again.
       const handedBack = this.repo.triggers.disposition(triggerId)?.handbacks?.some(item => item.ticketId === ticketId)
       if (handedBack) throw new UserError('handedBackHere')
+      if (this.repo.triggers.disposition(triggerId)?.retracted) throw new UserError('retracted')
       const trigger = this.tickets.attachable(ticketId, triggerId)
       this.evals.withdraw(trigger)
       this.tickets.attach(ticketId, trigger, note)
@@ -258,7 +292,7 @@ export class Engine {
 }
 
 /** What Sources ask and tell the Engine. */
-export type EngineForSources = Pick<Engine, 'receive' | 'bindThread' | 'threadClosed'>
+export type EngineForSources = Pick<Engine, 'receive' | 'retracted' | 'bindThread' | 'threadClosed'>
 /** What the main Session asks of the Engine. */
 export type EngineForMainSession = Pick<Engine, 'candidate' | 'candidateDelivered' | 'decide' | 'attach' | 'reply' | 'requestStatus' | 'note'>
 /** What people ask of the Engine, through the panel or the main Session. */

@@ -12,10 +12,12 @@ Opening the panel answers three questions, in this order:
 
 ## Tabs
 
-The tabs follow the workflow: **Overview**, **Source**, **Trigger**, **Eval**, **Execution**, and **Settings**. Until repository and account setup succeeds, Overview shows what is missing and links to the relevant setting.
+The panel opens on **Board** and **Team**, the team's view of the work; the tabs after them follow the workflow: **Overview**, **Source**, **Trigger**, **Eval**, **Execution**, and **Settings**. Until repository and account setup succeeds, Overview shows what is missing and links to the relevant setting.
 
 | Tab | Shows |
 | --- | --- |
+| Board | The engine map first: the chain from Sources through Eval, Tickets and the Executor to delivery and back to the conversation, each line as thick as what passed it in the last 24 hours or 7 days, with what was filtered, not taken, fanned out to a Ticket or waits on a person; hovering a node explains it and clicking opens its page, and the map folds to one line. Then every open Ticket as a card in the column of its stage: Queued, In progress, Needs a person, Waiting, and Done for the last 7 days. A card names who asked, the Threads it follows and what it waits for, and draws its journey as a five-step line; the board filters by person and title, and a setup problem or a pause shows above it. Cards glide to their new column as work moves |
+| Team | The agent as one of the team: who it acts as and its worker slots; the last 14 days' figures (new and delivered work, median lead time, merge rate, first-pass rate, messages per work item, proactive work) with a daily chart; the people who asked for work with what waits on them; and the activity, newest first |
 | Overview | Tickets needing action, system problems, activity counts for the last 24 hours, and Executor load. Each block links to its detailed page |
 | Source | Source state, setup problems and non-zero counts. Filtered Triggers and dropped messages cover the same 24-hour window as Overview |
 | Trigger | Threads filtered by Subscribed, Evaluating, New Triggers in 24 h, or All Threads. Each Thread shows its Triggers newest first, Decisions and Subscriptions |
@@ -29,7 +31,7 @@ A dropped message links to its Ticket, or to its Thread when it has no Ticket. T
 
 A human follow-up still owned by an Executor is marked **Delivered to Ticket**, without an Eval. The Thread also shows hand-back reasons and context-only Subscriptions. **Evaluate again** can send that follow-up to Eval, or retry a Trigger with no effective judgement: one filtered by its Source, an unavailable Eval, or a delivered message with neither a non-stop Decision nor an Executor acknowledgement.
 
-Ticket details show the originating Trigger, Decision and reason, scope and Policy version. Assignments and secondary details are folded below the immediate actions. **Retry** is available for failed Input delivery or a Ticket waiting for a person after a blocked or failed Report. Ended Tickets show outcomes such as **Pull request merged** or **Stopped by a person**.
+A Ticket's page leads with its journey, a stepper from the request through acceptance, work and review to its end, then its message flow: the people's messages, the agent's replies, the worker's reports and the host's notices in time order, drawn as lanes with a line from each message to the next, or as a conversation. Ticket details show the originating Trigger, Decision and reason, scope and Policy version. Assignments and secondary details are folded below the immediate actions. **Retry** is available for failed Input delivery or a Ticket waiting for a person after a blocked or failed Report. Ended Tickets show outcomes such as **Pull request merged** or **Stopped by a person**.
 
 ## Settings groups
 

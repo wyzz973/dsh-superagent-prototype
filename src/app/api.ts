@@ -7,6 +7,7 @@ import type { OverviewView } from './views/overview.ts'
 import type { SettingsView } from './views/settings.ts'
 import type { SourceStatusView } from './views/sources.ts'
 import type { DecisionListView, SearchView, ThreadDetailView, ThreadListView } from './views/threads.ts'
+import type { BoardView, EngineView, TeamView } from './views/team.ts'
 import type { TicketListView } from './views/tickets.ts'
 
 export const TICKET_FILTERS = ['open', 'person', 'working', 'idle', 'ended'] as const
@@ -20,6 +21,9 @@ type Delivery = 'injected' | 'pending'
 export interface Api {
   'GET state': { response: StateView }
   'GET overview': { response: OverviewView }
+  'GET board': { query?: { days?: number }; response: BoardView }
+  'GET team': { query?: { days?: number }; response: TeamView }
+  'GET engine': { query?: { days?: number }; response: EngineView }
   'GET search': { query: { q: string }; response: SearchView }
   'GET sources': { response: SourceStatusView[] }
   'GET settings': { response: SettingsView }

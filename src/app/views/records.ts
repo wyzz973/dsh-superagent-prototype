@@ -95,10 +95,12 @@ export function triggerView(view: Snapshot, trigger: Trigger, threadDecisions?: 
   const decided = !!disposition?.acked?.length || (!!decision && settled(decision))
   const unjudged = !!disposition?.filtered || decision?.kind === 'unavailable' || delivered || (!!disposition?.fanout.length && !decided)
     || (!!decision && !decided)
-  const requeue = trigger.human && !queued && !evaluating && unjudged
+  // A withdrawn message asks for nothing, so nobody may send it to Eval again.
+  const requeue = trigger.human && !queued && !evaluating && unjudged && !disposition?.retracted
   return { id: trigger.id, source: trigger.source, actor: view.actor(trigger.actor, trigger.human), human: trigger.human, at: trigger.at,
     text: plain(readable(trigger.text), true),
     preview: preview(trigger.text), url: trigger.url, threads: trigger.threads.map(threadKey), actions: { requeue },
+    ...disposition?.retracted ? { retracted: disposition.retracted.at } : {},
     disposition: { queued, evaluating, delivered, filtered: disposition?.filtered, fanout: disposition?.fanout ?? [],
       handbacks: (disposition?.handbacks ?? []).map(item => ({ ...item,
         title: store.tickets.get(item.ticketId)?.title ?? item.ticketId })),
@@ -127,7 +129,7 @@ export function ticketSummary(ticket: Ticket) {
     deliveryError: attribute(ticket.delivery?.error), sessionId: ticket.assignments.some(item => item.startedAt)
       ? workerSessionId(ticket.id) : '',
     directory: attribute(ticket.execution?.directory), summary: latestReport(ticket)?.summary ?? '', createdAt: ticket.createdAt,
-    updatedAt: ticket.updatedAt }
+    updatedAt: ticket.updatedAt, ...ticket.retraction ? { retraction: ticket.retraction } : {} }
 }
 export type TicketSummaryView = ReturnType<typeof ticketSummary>
 function threadUrl(store: Store, thread: Thread): string | undefined {

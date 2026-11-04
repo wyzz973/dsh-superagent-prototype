@@ -42,15 +42,27 @@ export interface SourcePolicyPart<P extends Record<string, unknown>> {
 /** UI link for a channel address; `triggerId` names the Trigger whose own deep link is preferred when available. */
 export interface ChannelLink { url: string; label: Localized; triggerId?: string }
 export type ChannelLinks = Partial<Pick<Deployment, 'repository' | 'feishu'>>
+/**
+ * What sending a message came to: it went out, with the id its Source gave it (`remote`) when the Source can take it back by
+ * that id, or the conversation can never receive it (`gone`).
+ */
+export type ChannelSent = 'sent' | { remote: string } | 'gone'
 /** Outbound messaging adapter for a source kind's threads. */
 export interface SourceChannel<C> {
   /** Whether a reply may still go to `address`; without it, every address may receive replies. */
   allowed?(address: Record<string, string>, config: C): boolean
   /**
-   * Sends a message idempotently by ID; returns `'gone'` when the target conversation no longer accepts replies.
+   * Sends a message idempotently by ID; returns `'gone'` when the target conversation no longer accepts replies, and the
+   * message's own id on the Source (`{ remote }`) when `retract` can take it back by it.
    * @throws when delivery failed but may succeed on a later retry.
    */
-  send(host: Pick<SourceContext, 'commands'>, message: OutboundMessage): Promise<'sent' | 'gone'>
+  send(host: Pick<SourceContext, 'commands'>, message: OutboundMessage): Promise<ChannelSent>
+  /**
+   * Takes back a message `send` sent, by the `remote` id it returned, such as when the person it answered withdrew theirs.
+   * Kinds whose messages stay once sent leave it out. Returns `'gone'` when the message can no longer be taken back.
+   * @throws when taking it back failed but may succeed on a later retry.
+   */
+  retract?(host: Pick<SourceContext, 'commands'>, message: OutboundMessage & { remote: string }): Promise<'retracted' | 'gone'>
   /** Returns the URL and label for `address`; `url` is empty when `links` lack the required deployment info. */
   link(address: Record<string, string>, links: ChannelLinks): ChannelLink
 }

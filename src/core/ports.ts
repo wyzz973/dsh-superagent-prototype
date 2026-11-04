@@ -80,6 +80,11 @@ export interface Outbox {
   status(id: string): ReplyStatus | undefined
   /** Withdraw a message that has not gone out. */
   withdraw(id: string): void
+  /**
+   * Its writer withdrew the message `channel` answers: withdraw what still waits to go there, and take back what went, where
+   * its Source can take a message back. Optional, so an Outbox without it leaves sent messages as they are.
+   */
+  retractTo?(channel: ChannelRef): void
 }
 
 /** What the Engine reports after a change, by event type. */
@@ -96,6 +101,8 @@ export interface DomainEvents {
   /** A person dropped every ticket's Subscription, or a ticket's Executor its own, for `reason`. */
   'thread.unsubscribed': { threadKey: string; ticketId: string; by: 'person' | 'executor'; reason?: string }
   'trigger.requeued': { triggerId: string }
+  /** A Source reported that a Trigger's writer withdrew it; `tickets` are the open tickets it reached. */
+  'trigger.retracted': { triggerId: string; tickets: string[] }
   /** A person's follow-up that reached tickets and that an earlier version also queued for Eval left the queue. */
   'trigger.followup': { triggerId: string }
   'policy.changed': { from: string; to: string }

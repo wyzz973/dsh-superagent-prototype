@@ -57,6 +57,11 @@ export interface TriggerDisposition {
   handbacks?: { ticketId: string; reason: string; at: string }[]
   /** The tickets whose Executor acknowledged it or answered it, taking it up as within the ticket. */
   acked?: string[]
+  /**
+   * Its writer withdrew it, such as by recalling an IM message or deleting a comment, as its Source reported at `at`: its
+   * text is erased, no Eval takes it, and the tickets it reached learn it was withdrawn (see `Engine.retracted`).
+   */
+  retracted?: { at: string }
   at: string
 }
 /** What deciding a follow-up's owners reads: the stored tickets, Threads and dispositions, as the Store and the core keep them. */
@@ -223,6 +228,8 @@ export interface Assignment {
   endedAt?: string
   endedReason?: string
   report?: { state: ReportState; summary: string; at: string }
+  /** The reports `report` replaced, oldest first and at most {@link EARLIER_REPORTS}, so a Ticket's journey can show its steps. */
+  earlier?: { state: ReportState; summary: string; at: string }[]
   /** When Inputs last reached the worker; one at or after `report.at` means the worker has been busy with Inputs since that report. */
   deliveredAt?: string
   /**
@@ -231,6 +238,9 @@ export interface Assignment {
    */
   idleAt?: string
 }
+
+/** How many replaced reports an Assignment keeps in `earlier`. */
+export const EARLIER_REPORTS = 20
 
 export type TicketInput =
   /** A Trigger on one of its Threads, or attached to it; `human` when a person wrote it. */
@@ -253,6 +263,11 @@ export type TicketInput =
   /** A human's message on one of its Threads resumed the ended ticket under its unchanged Mandate. */
   | { id: string; kind: 'resumed'; triggerId: string; at: string }
   | { id: string; kind: 'text'; text: string; at: string }
+  /**
+   * A message that reached the ticket was withdrawn: the request it started from (`origin`), after the grace a revision
+   * may come in (see {@link Retraction}), or a later message, whose content is gone and asks for nothing any more.
+   */
+  | { id: string; kind: 'retracted'; triggerId: string; at: string; origin?: true }
   /** A fact the main Session gave the ticket from other work: context, which asks for nothing and grants nothing. */
   | { id: string; kind: 'note'; text: string; at: string }
 
@@ -267,6 +282,16 @@ export interface PolicyEffect {
   requesterAllowed?: false
   requester?: ActorRef
 }
+
+/** How long after the request a ticket started from was withdrawn its writer may send a revision in its place. */
+export const RETRACTION_GRACE_MS = 120_000
+/**
+ * The request a ticket started from was withdrawn at `at`. Until `until` a person's message from the same writer in the same
+ * conversation revises it (`revisedBy`): it reaches the ticket as the request now, without an Eval, and replies go to it. Once
+ * `until` passes without one, `settled` says what followed: a ticket no worker started ended (`ended`), else its worker was told
+ * (`told`).
+ */
+export interface Retraction { triggerId: string; at: string; until: string; revisedBy?: string; settled?: 'ended' | 'told' }
 
 export type TicketEndBy = 'executor' | 'human'
 /** How a ticket ended: with its result, with its pull request merged or closed unmerged, with nothing to do, or stopped by a person. */
@@ -305,6 +330,8 @@ export interface Ticket {
   execution?: Execution
   /** The latest failed delivery of an Input to its worker, until a delivery succeeds. */
   delivery?: { error: string; at: string }
+  /** The request it started from was withdrawn (see {@link Retraction}). */
+  retraction?: Retraction
 }
 /**
  * A Thread a ticket follows, by its key: `own` when the ticket opened it, such as its own pull request, and when and how it

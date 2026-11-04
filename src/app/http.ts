@@ -26,6 +26,7 @@ import { overview } from './views/overview.ts'
 import { settingsView } from './views/settings.ts'
 import { sourcesStatus, type SetupState } from './views/sources.ts'
 import { decisionList, search, threadDetail, threadList } from './views/threads.ts'
+import { board, engine, journey, team } from './views/team.ts'
 import { executorLoad, ticketDetail, ticketList } from './views/tickets.ts'
 
 export interface HttpHost {
@@ -108,6 +109,12 @@ export function stateView(runtime: HttpHost) {
     maxWorkers: settings.executor.maxWorkers },
     masterId: runtime.masterId, paused: settings.paused, health: runtime.health }
 }
+/** The agent as the team views show it: its GitHub account once setup resolved it, its worker slots and whether it is paused. */
+function agentState(runtime: HttpHost) {
+  const settings = runtime.store.settings()
+  return { account: runtime.configured() ? runtime.deployment.github.login : '', maxWorkers: settings.executor.maxWorkers,
+    paused: settings.paused, ...executorLoad(runtime.store, runtime.executor.activeCount()) }
+}
 const views = (runtime: HttpHost): ViewHost => ({ store: runtime.store, sources: runtime.sources, links: runtime.links() })
 const setupState = (runtime: HttpHost): SetupState => ({ deployment: runtime.configured() ? runtime.deployment : undefined,
   problem: runtime.setupProblem, feishuProblem: runtime.feishuProblem })
@@ -116,7 +123,7 @@ export type StateView = ReturnType<typeof stateView>
 function ticketPage(runtime: HttpHost, id: string) {
   const detail = ticketDetail(views(runtime), id), ticket = runtime.store.tickets.get(id)
   if (!detail || !ticket) throw new RouteError(404, 'Ticket not found')
-  return { ...detail, environment: runtime.configured() ? runtime.ticketEnvironment(ticket) : [] }
+  return { ...detail, journey: journey(views(runtime), ticket), environment: runtime.configured() ? runtime.ticketEnvironment(ticket) : [] }
 }
 export type TicketPageView = ReturnType<typeof ticketPage>
 function promptsView(runtime: HttpHost, revision: number | undefined, offset: number) {
@@ -144,6 +151,7 @@ const DecisionsQuery = z.object({ kind: z.string().default(''), window: z.litera
   limit: limit(30, 200) })
 const count = z.coerce.number().int().nonnegative()
 const PromptsQuery = z.object({ revision: count.optional(), offset: count.default(0) })
+const WindowQuery = (fallback: number) => z.object({ days: z.coerce.number().int().min(1).max(90).catch(fallback) })
 const SourceBlock = z.templateLiteral(['source:', z.string().regex(/^[a-z][a-z0-9-]*$/)])
 const SettingsBlockSchema = z.union([z.enum(['policy', 'eval', 'executor']), SourceBlock])
 const SaveRequest = z.object({ value: z.unknown(), revision: z.number().int().nonnegative() })
@@ -156,6 +164,9 @@ function routes(runtime: HttpHost): Routes {
     'GET state': () => stateView(runtime),
     'GET overview': () => overview(views(runtime), runtime.health, policyVersion(store.settings()),
       executorLoad(store, runtime.executor.activeCount()), runtime.setupProblem ?? runtime.feishuProblem),
+    'GET board': ({ query }) => board(views(runtime), WindowQuery(7).parse(query).days),
+    'GET team': ({ query }) => team(views(runtime), agentState(runtime), WindowQuery(14).parse(query).days),
+    'GET engine': ({ query }) => engine(views(runtime), agentState(runtime), WindowQuery(1).parse(query).days),
     'GET search': ({ query }) => search(views(runtime), query.q ?? '', runtime.sourceLinks),
     'GET sources': () => sourcesStatus(views(runtime), runtime.health, setupState(runtime)),
     'GET settings': () => settingsView(store, runtime.sources, runtime.health, setupState(runtime), runtime.machine.stateDir),

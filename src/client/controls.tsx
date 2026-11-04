@@ -44,6 +44,12 @@ const ICON_PATHS = {
   running: 'M12 3a9 9 0 1 0 9 9',
   blocked: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM5.6 5.6l12.8 12.8',
   queue: 'M4 6h16M4 12h16M4 18h10',
+  board: 'M4 5h4v14H4zM10 5h4v9h-4zM16 5h4v6h-4z',
+  users: 'M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM3 20c.8-3.4 3.2-5.5 6-5.5s5.2 2.1 6 5.5M16 4.5a3.5 3.5 0 0 1 0 6.5M18 14.8c1.6.8 2.6 2.6 3 5.2',
+  bot: 'M8 8h8a3 3 0 0 1 3 3v5a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3v-5a3 3 0 0 1 3-3zM12 4v4M9.5 13v1M14.5 13v1',
+  chart: 'M4 20h16M7 16v-5M12 16V7M17 16v-8',
+  activity: 'M3 12h4l3-7 4 14 3-7h4',
+  check: 'M5 12.5l4.5 4.5L19 7.5',
 } as const satisfies Record<string, string>
 export type IconName = keyof typeof ICON_PATHS
 export function Icon({ name, size = 16 }: { name: IconName; size?: number }) {

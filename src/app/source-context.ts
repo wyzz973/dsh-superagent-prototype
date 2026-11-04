@@ -11,7 +11,7 @@ import type { Store } from './store.ts'
 export interface SourceContextDeps {
   readonly store: Pick<Store, 'atomic' | 'get' | 'set' | 'delete' | 'keys' | 'threads' | 'tickets' | 'triggers' | 'read'>
   readonly outbox: Pick<Outbox, 'send'>
-  readonly engine: Pick<EngineForSources, 'bindThread' | 'threadClosed'>
+  readonly engine: Pick<EngineForSources, 'bindThread' | 'threadClosed' | 'retracted'>
   readonly commands: Commands
   readonly sources: SourceRegistry
   /** Throws when accessed before initial setup completes. */
@@ -62,7 +62,8 @@ export function sourceContextOf(deps: SourceContextDeps, kind: { kind: string; h
       bindThread: (id, thread, own) => { deps.engine.bindThread(id, thread, own) },
       threadClosed: (thread, outcome, at) => { deps.engine.threadClosed(thread, outcome, at) },
     },
-    triggers: { get: id => store.triggers.get(id), latest: thread => store.read.threadTriggers(thread, 1)[0] },
+    triggers: { get: id => store.triggers.get(id), latest: thread => store.read.threadTriggers(thread, 1)[0],
+      retracted: (id, at) => deps.engine.retracted(id, at) },
     notify: message => { deps.outbox.send(message) },
     report: (entry, value) => {
       if (!kind.health.includes(entry)) throw new Error(`The ${kind.kind} Source has no health entry ${entry}`)

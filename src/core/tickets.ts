@@ -1,7 +1,8 @@
 /** Tickets: their lifecycle from an accept to their end, their Subscriptions and their Inputs. */
 import { key } from './ids.ts'
 import { UserError } from './errors.ts'
-import { latestAssignment, latestReport, liveTicket, readUntil, runningAssignment, settled, threadKey, waitsForPerson } from './model.ts'
+import { RETRACTION_GRACE_MS, latestAssignment, latestReport, liveTicket, readUntil, runningAssignment, settled, threadKey, waitsForPerson }
+  from './model.ts'
 import type { Assignment, ChannelRef, Evaluation, Follow, Mandate, PolicyEffect, ThreadRef, Ticket, TicketEndBy, TicketInput, TicketOutcome,
   Trigger, TriggerDisposition } from './model.ts'
 import type { AssessmentOutcome } from './ports.ts'
@@ -267,6 +268,69 @@ export class Tickets extends EnginePart {
     this.repo.tickets.save(ticket)
     this.options.executor.start(ticket, assignment)
     this.emit('ticket.resumed', { ticketId, triggerId: first.triggerId })
+  }
+  /**
+   * Its writer withdrew a Trigger. An open ticket it started holds the withdrawal for the grace a revision may come in (see
+   * `Retraction`); one it reached as a later message drops it if its worker has not received it, and otherwise is told.
+   * @returns the open tickets it reached.
+   */
+  retracted(trigger: Trigger, at: string): string[] {
+    const reached = new Set(this.repo.triggers.disposition(trigger.id)?.fanout ?? [])
+    const tickets = this.repo.tickets.open().filter(ticket => ticket.origin.triggerId === trigger.id || reached.has(ticket.id)
+      || ticket.inputs.some(input => input.kind === 'trigger' && input.triggerId === trigger.id))
+    for (const ticket of tickets) {
+      if (ticket.origin.triggerId === trigger.id && !ticket.retraction) {
+        ticket.retraction = { triggerId: trigger.id, at, until: new Date(Date.parse(at) + RETRACTION_GRACE_MS).toISOString() }
+        ticket.updatedAt = this.now()
+        this.repo.tickets.save(ticket)
+        continue
+      }
+      const inputs = ticket.inputs.filter(input => input.kind === 'trigger' && input.triggerId === trigger.id).map(input => input.id)
+      const waiting = inputs.filter(id => ticket.undelivered.includes(id))
+      if (waiting.length && waiting.length === inputs.length) {
+        ticket.undelivered = ticket.undelivered.filter(id => !waiting.includes(id)); ticket.updatedAt = this.now()
+        this.repo.tickets.save(ticket)
+      } else this.addInput(ticket, { id: key('input', ticket.id, 'retracted', trigger.id), kind: 'retracted', triggerId: trigger.id, at })
+    }
+    return tickets.map(ticket => ticket.id)
+  }
+  /**
+   * The open tickets a person's new message revises: ones whose request was withdrawn within the grace, by the same writer, in
+   * the conversation the withdrawn one was written in, and not revised yet.
+   */
+  revisable(trigger: Trigger): Ticket[] {
+    if (!trigger.human || !trigger.channel) return []
+    const at = this.now()
+    return this.repo.tickets.open().filter(ticket => {
+      const retraction = ticket.retraction
+      if (!retraction || retraction.revisedBy || retraction.settled || at > retraction.until) return false
+      const withdrawn = this.repo.triggers.get(retraction.triggerId)
+      return !!withdrawn && withdrawn.actor.source === trigger.actor.source && withdrawn.actor.id === trigger.actor.id
+        && withdrawn.channel?.thread === trigger.channel!.thread
+    })
+  }
+  /** A person's message revises a ticket's withdrawn request: the ticket follows its Threads and answers in its conversation. */
+  revise(ticket: Ticket, trigger: Trigger): void {
+    const withdrawn = this.repo.triggers.get(ticket.retraction!.triggerId)
+    ticket.retraction = { ...ticket.retraction!, revisedBy: trigger.id }
+    ticket.channels = [trigger.channel!, ...ticket.channels.filter(channel => !withdrawn?.channel || !sameChannel(channel, withdrawn.channel))]
+    this.repo.tickets.save(ticket)
+    for (const ref of trigger.threads) this.subscribe(ticket.id, ref)
+  }
+  /**
+   * The grace after a ticket's request was withdrawn passed without a revision: a ticket whose worker never started ends, as
+   * its writer withdrew it, and the worker of one that did is told, to stop at a safe point and report.
+   */
+  retractionDue(ticketId: string): void {
+    const ticket = this.repo.tickets.get(ticketId)
+    const retraction = ticket?.retraction
+    if (!ticket || !liveTicket(ticket) || !retraction || retraction.revisedBy || retraction.settled || this.now() < retraction.until) return
+    const started = ticket.assignments.some(assignment => assignment.startedAt)
+    ticket.retraction = { ...retraction, settled: started ? 'told' : 'ended' }
+    this.repo.tickets.save(ticket)
+    if (!started) { this.end(ticketId, 'human', 'stopped', this.now(), 'retracted'); return }
+    this.addInput(this.require(ticketId), { id: key('input', ticketId, 'retracted', retraction.triggerId), kind: 'retracted',
+      triggerId: retraction.triggerId, at: retraction.at, origin: true })
   }
   /** The Triggers of a ticket's trigger Inputs, or of those of them whose Input ids are `ids`. */
   private triggersOf(ticket: Ticket, ids?: readonly string[]): Trigger[] {

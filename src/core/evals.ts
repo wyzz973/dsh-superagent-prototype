@@ -131,6 +131,8 @@ export class Evals extends EnginePart {
   decide(triggerId: string, outcome: Outcome): Decision {
     const trigger = this.repo.triggers.get(triggerId)
     if (!trigger) throw new UserError('unknownTrigger')
+    // A withdrawn message asks for nothing: no outcome, an accept least of all, may still come of it.
+    if (this.repo.triggers.disposition(triggerId)?.retracted) throw new UserError('retracted')
     const held = this.holding(triggerId)
     if (outcome.evalId && held?.evaluating?.id !== outcome.evalId) throw new UserError('evalFinished', { eval: outcome.evalId })
     // Prevent a replayed trigger that already created a ticket from spawning a second one.
@@ -196,6 +198,24 @@ export class Evals extends EnginePart {
     decision.dismissed = true
     this.repo.decisions.save(decision)
     return decision
+  }
+  /**
+   * Its writer withdrew a Trigger: one queued for Eval leaves the queue, and an Eval that holds it ends, its other Triggers
+   * waiting for a fresh Eval without it; either way the withdrawn one is recorded ignored, as `retracted`.
+   */
+  retracted(trigger: Trigger): void {
+    const thread = this.repo.threads.get(threadKey(trigger.threads[0]!))
+    if (!thread) return
+    const reason: Reason = { code: 'retracted', triggerId: trigger.id }
+    const evaluation = thread.evaluating
+    if (evaluation?.triggerIds.includes(trigger.id)) {
+      const others = evaluation.triggerIds.filter(id => id !== trigger.id)
+      delete thread.evaluating; delete thread.expired
+      thread.pending = [...others, ...thread.pending.filter(id => !others.includes(id))]
+      this.options.assessor.release?.(evaluation.id)
+    } else if (!thread.pending.includes(trigger.id)) return
+    this.ignore(thread, [trigger.id], [reason], this.policy(), this.now())
+    this.repo.threads.save(thread)
   }
   /** Take a Trigger out of its Thread's queue because it was routed by hand. */
   withdraw(trigger: Trigger): void {
