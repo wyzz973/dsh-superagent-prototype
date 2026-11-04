@@ -11,9 +11,14 @@ import { fileURLToPath } from 'node:url'
 import { Store } from '../src/app/store.ts'
 import { board, engine, journey, team } from '../src/app/views/team.ts'
 import { overview } from '../src/app/views/overview.ts'
-import { decisionList, threadDetail, threadList } from '../src/app/views/threads.ts'
+import { settingsView } from '../src/app/views/settings.ts'
+import { sourcesStatus } from '../src/app/views/sources.ts'
+import { decisionList, search, threadDetail, threadList } from '../src/app/views/threads.ts'
 import { executorLoad, ticketDetail, ticketList } from '../src/app/views/tickets.ts'
 import type { ViewHost } from '../src/app/views/records.ts'
+import { policyHistory } from '../src/app/settings-history.ts'
+import { SKILL_NAME, SKILL_PREFIX, TEAM_SECTIONS, builtInBase, builtInParts, defaultPrompts } from '../src/app/prompts.ts'
+import { policyVersion } from '../src/policy.ts'
 import { SourceRegistry } from '../src/sources/registry.ts'
 import { feishuKind } from '../src/sources/feishu.ts'
 import { githubKind } from '../src/sources/github.ts'
@@ -31,6 +36,16 @@ const host: ViewHost = { store, sources, links: channel => ({ url: channel.sourc
 const running = () => store.tickets.list().filter(ticket => ticket.assignments.at(-1)?.state === 'running' && !ticket.ended
   && ticket.assignments.at(-1)?.report?.state === 'progress').length
 const load = () => executorLoad(store, running())
+// Every Source part reports ready, as a healthy deployment would.
+const health = Object.fromEntries([...feishuKind.health, ...githubKind.health].map(name => [name, { state: 'ready' as const, detail: '' }]))
+const setup = {}
+const blank = { revision: 0, previousRevision: null, savedAt: '', source: 'defaults' }
+const prompts = () => ({ masterId: 'master', current: { ...blank, config: defaultPrompts() }, defaults: defaultPrompts(), sections: TEAM_SECTIONS,
+  skillName: SKILL_NAME.source, builtin: ['feishu', 'github'], skillPrefix: SKILL_PREFIX, defaultChanged: [], sessions: [],
+  notificationPending: false, parts: Object.entries(builtInParts()).map(([key, part]) => ({ key, ...part, base: builtInBase(part.text) })),
+  revisions: [{ ...blank, changed: [] }], next_offset: null })
+const models = { default: { provider: 'host', model: 'default' }, routableProviders: [], failures: [], groups: [{ id: 'deepseek',
+  name: 'DeepSeek', models: [{ id: 'deepseek-chat', name: 'DeepSeek Chat', reasoning: { efforts: [{ id: 'high', name: 'High' }] } }] }] }
 const agent = () => { const now = load(); return { account: 'agent-bot', maxWorkers: 4, paused: false, ...now, running: Math.min(4, now.running) } }
 
 const answer = (path: string, query: URLSearchParams): unknown => {
@@ -44,7 +59,13 @@ const answer = (path: string, query: URLSearchParams): unknown => {
     case 'board': return board(host, Number(query.get('days') ?? 7))
     case 'team': return team(host, agent(), Number(query.get('days') ?? 14))
     case 'engine': return engine(host, agent(), Number(query.get('days') ?? 1))
-    case 'overview': return overview(host, {}, 'demo', load())
+    case 'overview': return overview(host, health, 'demo', load())
+    case 'sources': return sourcesStatus(host, health, setup)
+    case 'settings': return settingsView(store, sources, health, setup, '/srv/dsh-superagent')
+    case 'search': return search(host, query.get('q') ?? '', { entries: () => new Map<string, string>().entries() })
+    case 'policy': return id === 'history' ? policyHistory(store, sources, policyVersion(store.settings())) : undefined
+    case 'models': return models
+    case 'prompts': return prompts()
     case 'tickets': {
       if (!id) return ticketList(host, (query.get('state') ?? 'open') as 'open', offset, limit)
       const ticket = store.tickets.get(id), detail = ticketDetail(host, id)

@@ -96,7 +96,8 @@ function seed(store: Store, spec: Spec, now: number) {
     basis: spec.proactive ? { via: 'admission' as const, cell: 'listedUnaddressed' as const, rules: ['copy'], observation: { mode: 'auto' as const } }
       : { via: 'addressed' as const, addressed: 'mention' as const, sender: person.name } }
   const decision: Decision = { id: `decision-${spec.id}`, evalId: `eval-${spec.id}`, threadKey: threads[0]!.key, triggerIds: [origin.id],
-    policyVersion: 'demo', at: at(0.3), kind: 'accept', reason: [{ code: 'startedTicket' }], strength, ticketId: spec.id, mandate }
+    policyVersion: 'demo', at: at(0.3), kind: 'accept', reason: spec.proactive
+      ? [{ code: 'said', values: { text: '明确的文案错误，符合「文案修改」规则' } }] : [{ code: 'explicitRouted' }], strength, ticketId: spec.id, mandate }
   store.decisions.save(decision)
   store.triggers.saveDisposition(origin.id, { fanout: [], decisionId: decision.id, at: origin.at })
   const assignment: Assignment = { id: `${spec.id}-a1`, state: spec.at === 'queued' ? 'pending' : 'running', createdAt: at(0.3),
