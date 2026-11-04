@@ -105,10 +105,16 @@ export function StageMark({ state, icon, label }: { state: DotState; icon: IconN
   return <span className="dt-stage" data-state={state}>{state === 'ongoing' ? <StateDot state="ongoing" /> : <Icon name={icon}
     size={14} />}{label}</span>
 }
+/**
+ * What a view shows before its data: a failure as a callout, or placeholder lines in the shape of a list while it loads. The
+ * placeholder fades in after a moment, so a fast answer never flashes it.
+ */
 export function LoadState({ error, loading }: { error?: Error | undefined; loading: boolean }) {
   const { t } = usePanel()
-  if (error) return <p className="dt-error" role="alert">{error.message}</p>
-  return loading ? <Hint>{t('loading')}</Hint> : null
+  if (error) return <p className="dt-error dt-load-error" role="alert"><Icon name="alert" size={14} /><span>{error.message}</span></p>
+  return loading ? <div className="dt-skeleton" role="status" aria-label={t('loading')}>
+    {[0, 1, 2].map(index => <span key={index} className="dt-skeleton-line" />)}
+  </div> : null
 }
 export function LoadMore({ onMore }: { onMore: () => void }) {
   const { t } = usePanel()

@@ -63,7 +63,7 @@ it('shows a Ticket with its stage, its Mandate details with the Trigger and Deci
   // The flow opens as lanes, a dot per message on its lane and a line from each to the next; the conversation view is one click away.
   expect(all('.dt-lane-row').map(item => [item.dataset.lane, item.querySelector('.dt-lane-line')?.textContent]))
     .toEqual([['person', '登录页回归了'], ['agent', '我来修复登录页']])
-  expect(all('.dt-lane-row')[1]!.querySelector('.dt-lane-link')?.getAttribute('d')).toBe('M18,0 C18,13 58,13 58,26')
+  expect(all('.dt-lane-row')[1]!.querySelector('.dt-lane-link')?.getAttribute('d')).toBe('M22,0 C22,13 72,13 72,26')
   await click(find(zh['flow.view.chat'], '[role="tab"]'))
   expect(all('.dt-messages > li').map(item => [item.dataset.lane, item.querySelector('.dt-flow-text')?.textContent]))
     .toEqual([['person', '登录页回归了'], ['agent', '我来修复登录页']])

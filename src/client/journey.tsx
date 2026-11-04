@@ -78,7 +78,7 @@ function Bubble({ message, fresh, index }: { message: Message; fresh: boolean; i
 
 /** The lanes of the message flow, left to right: people, the agent's replies, the worker's reports and the host's notices. */
 const LANES = ['person', 'agent', 'worker', 'host'] as const
-const ROW = 52, LANE = 40, PAD = 18
+const ROW = 52, LANE = 50, PAD = 22
 const laneX = (lane: Message['lane']) => PAD + LANES.indexOf(lane) * LANE
 function who(t: T, message: Message): string {
   if (message.lane === 'person') return message.actor?.name ? t('lang') === 'en' ? message.actor.name.en : message.actor.name.zh : t('flow.lane.person')

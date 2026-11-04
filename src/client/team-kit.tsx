@@ -1,5 +1,5 @@
 /** Shared pieces of the team pages: people's avatars, figure tiles, the page intro, and the wording of durations and shares. */
-import type { CSSProperties, ReactNode } from 'react'
+import { useLayoutEffect, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
 import type { Actor } from './api.ts'
 import { Icon, InfoTip, type IconName } from './controls.tsx'
 import { useCountUp } from './motion.ts'
@@ -33,13 +33,53 @@ export function PageIntro({ title, text, icon, children }: { title: string; text
     {children}
   </div>
 }
-export function Kpi({ label, value, sub, hint, tone }: { label: string; value: ReactNode; sub?: ReactNode; hint?: string
-  tone?: 'warning' }) {
+/**
+ * A figure tile: its label, its value, and below them what gives the value its context: a daily trend as a sparkline, a share as a
+ * meter against the whole, or a short note.
+ */
+export function Kpi({ label, value, sub, hint, tone, trend, share }: { label: string; value: ReactNode; sub?: ReactNode; hint?: string
+  tone?: 'warning'; trend?: number[]; share?: number | undefined }) {
   return <div className="dt-kpi" data-tone={tone}>
     <span className="dt-kpi-label">{label}{hint && <InfoTip text={hint} />}</span>
     <span className="dt-kpi-value">{value}</span>
+    {trend && trend.length > 1 && <Spark values={trend} />}
+    {share !== undefined && <span className="dt-kpi-meter" aria-hidden="true"><span style={{ transform: `scaleX(${Math.min(1, Math.max(0, share))})` }} /></span>}
     {sub && <span className="dt-kpi-sub">{sub}</span>}
   </div>
+}
+/**
+ * A trend line for a tile, drawn in the quiet hue with today's point marked. It stretches to the tile's width, so its stroke keeps
+ * its weight however wide the tile is, and the end dot is placed in the tile's own units rather than the stretched drawing's.
+ */
+export function Spark({ values }: { values: number[] }) {
+  const max = Math.max(1, ...values), last = values.length - 1
+  const y = (value: number) => 22 - value / max * 20
+  const line = values.map((value, index) => `${index ? 'L' : 'M'}${index / last * 100},${y(value)}`).join(' ')
+  return <span className="dt-spark" aria-hidden="true">
+    <svg viewBox="0 0 100 24" preserveAspectRatio="none">
+      <path className="dt-spark-area" d={`${line} L100,24 L0,24 Z`} />
+      <path className="dt-spark-line" d={line} vectorEffect="non-scaling-stroke" />
+    </svg>
+    <span className="dt-spark-dot" style={{ top: `${y(values[last]!) / 24 * 100}%` }} />
+  </span>
+}
+/** The size an element lays out at, kept current as it resizes; `fallback` until it is measured or where it cannot be. */
+export function useSize(ref: RefObject<HTMLElement | null>, fallback: { width: number; height: number }): { width: number; height: number } {
+  const [size, setSize] = useState(fallback)
+  useLayoutEffect(() => {
+    const element = ref.current
+    if (!element) return
+    const measure = () => {
+      const { clientWidth: width, clientHeight: height } = element
+      if (width && height) setSize(current => current.width === width && current.height === height ? current : { width, height })
+    }
+    measure()
+    if (typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(measure)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [ref])
+  return size
 }
 /** A duration in the largest unit that keeps it readable: minutes below an hour, hours below two days, then days. */
 export function duration(t: T, ms: number | undefined): string {
