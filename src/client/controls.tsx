@@ -2,8 +2,8 @@
  * Context-free UI primitives styled with `--dsw-alias-*` tokens.
  * Mirrors DSH ui-primitives markup and keyboard behavior without coupling to its internal package API.
  */
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type KeyboardEvent,
-  type ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type CSSProperties, type InputHTMLAttributes,
+  type KeyboardEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 
 const cx = (...names: (string | false | undefined)[]) => names.filter(Boolean).join(' ')
@@ -95,12 +95,22 @@ export function SegmentedTabs<V extends string>({ items, value, onChange, label,
 }) {
   const list = useRef<HTMLDivElement>(null)
   const [more, setMore] = useState<'start' | 'end' | 'both'>()
+  // The underline glides to the selected tab; it is placed from the tab's own box so long labels and resizes stay exact.
+  const ink = useCallback(() => {
+    const element = list.current, tab = element?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')
+    if (!element || !tab) return
+    element.style.setProperty('--dt-ink-x', `${tab.offsetLeft}px`)
+    element.style.setProperty('--dt-ink-w', `${tab.offsetWidth}px`)
+    element.dataset.ink = ''
+  }, [])
   const measure = useCallback(() => {
     const element = list.current
     if (!element) return
     const start = element.scrollLeft > 1, end = element.scrollLeft + element.clientWidth < element.scrollWidth - 1
     setMore(start && end ? 'both' : start ? 'start' : end ? 'end' : undefined)
-  }, [])
+    ink()
+  }, [ink])
+  useLayoutEffect(ink, [ink, value])
   // Observe both the tablist container (pane resize) and individual tabs (locale label changes).
   useEffect(() => {
     measure()
@@ -122,8 +132,9 @@ export function SegmentedControl<V extends string>({ options, value, onChange, l
   options: readonly { value: V; label: string; title?: string }[]; value: V; onChange: (next: V) => void; label: string; disabled?: boolean
   className?: string
 }) {
-  return <div role="tablist" aria-label={label} className={cx('dt-segmented', className)}
-    style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}
+  const index = options.findIndex(option => option.value === value)
+  return <div role="tablist" aria-label={label} className={cx('dt-segmented', className)} data-thumb={index < 0 ? undefined : ''}
+    style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))`, '--dt-count': options.length, '--dt-index': index } as CSSProperties}
     onKeyDown={event => { if (!disabled) walk(event, options.map(option => option.value), value, onChange) }}>
     {options.map(option => <button key={option.value} type="button" role="tab" aria-selected={option.value === value}
       tabIndex={option.value === value ? 0 : -1}
@@ -167,7 +178,7 @@ export function DisclosureRow({ icon, title, open, onToggle, collapsedContent, c
       onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onToggle() } }}>
       <span className="dt-disclosure-lead">
         <span className="dt-disclosure-icon">{icon}</span>
-        <span className="dt-disclosure-chevron"><Icon name={open ? 'chevron-up' : 'chevron-down'} /></span>
+        <span className="dt-disclosure-chevron"><Icon name="chevron-down" /></span>
       </span>
       <span className="dt-disclosure-title">{title}</span>
       {!open && collapsedContent}

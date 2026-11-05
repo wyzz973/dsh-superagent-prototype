@@ -1,7 +1,7 @@
 /** Team board: every Ticket as a card in the column of its stage, filterable by the person who asked for it. */
 import { useEffect, useRef, useState } from 'react'
 import { usePoll, type BoardCard, type BoardView } from './api.ts'
-import { Icon, InfoTip, Input, Tag } from './controls.tsx'
+import { Button, Icon, InfoTip, Input, Tag } from './controls.tsx'
 import { ticketMark } from './marks.ts'
 import { useFlip } from './motion.ts'
 import { usePanel, usePanelData } from './provider.tsx'
@@ -9,7 +9,7 @@ import { setupPage } from './route.ts'
 import { ThreadChip } from './rows.tsx'
 import { EngineMap } from './engine.tsx'
 import { projectHue } from './projects.tsx'
-import { Avatar, PageIntro, duration } from './team-kit.tsx'
+import { Avatar, Count, PageIntro, duration } from './team-kit.tsx'
 import { actorName, readableMarkers, valueLabel } from './text.ts'
 import { CheckSetupButton, LoadState, SetupMessage, StageMark, When } from './widgets.tsx'
 
@@ -46,6 +46,8 @@ function Chain({ card }: { card: BoardCard }) {
 function Card({ card }: { card: BoardCard }) {
   const { t, navigate } = usePanel()
   const mark = ticketMark(t, card)
+  // A finished Ticket asks nothing of anyone: its card keeps what it was, who asked and how it ended, and drops the rest.
+  const done = card.column === 'done'
   const withdrawn = card.retraction && !card.retraction.revisedBy ? card.retraction : undefined
   const failed = card.workspace?.state === 'failed' ? card.workspace : undefined
   const note = withdrawn ? { text: t(withdrawn.settled ? 'board.withdrawn.settled' : 'board.withdrawn.grace'), error: false }
@@ -53,7 +55,7 @@ function Card({ card }: { card: BoardCard }) {
     : card.note ? { text: readableMarkers(t, card.note.text), error: card.note.error }
     : card.report ? { text: readableMarkers(t, card.report.preview), error: false } : undefined
   return <li className="dt-board-card" data-col={card.column} data-state={withdrawn && card.state === 'open' ? 'warning' : card.column === 'person' ? mark.dot
-    : undefined}
+    : undefined} data-compact={done || undefined}
     data-flip={card.id} data-flip-group={card.column}>
     <div className="dt-board-card-top">
       <StageMark state={mark.dot} icon={mark.icon} label={mark.label} />
@@ -67,33 +69,42 @@ function Card({ card }: { card: BoardCard }) {
     {card.project && <span className="dt-board-project" title={card.project.id}>
       <span className="dt-board-project-dot" style={{ ['--dt-hue' as string]: projectHue(card.project.id) }} />{card.project.name}</span>}
     <button type="button" className="dt-board-card-title" onClick={() => navigate({ page: 'execution', id: card.id })}>{card.title}</button>
-    {note && <p className={note.error ? 'dt-board-card-note dt-error-text' : 'dt-board-card-note'} title={note.text}>{note.text}</p>}
-    {card.threads.length > 0 && <div className="dt-board-card-chips">{card.threads.map(thread => <ThreadChip key={thread.key}
+    {note && !done && <p className={note.error ? 'dt-board-card-note dt-error-text' : 'dt-board-card-note'} title={note.text}>{note.text}</p>}
+    {card.threads.length > 0 && !done && <div className="dt-board-card-chips">{card.threads.map(thread => <ThreadChip key={thread.key}
       thread={thread} />)}</div>}
     <div className="dt-board-card-foot">
       <span className="dt-board-who"><Avatar actor={card.requester} id={card.requester.key} t={t} size="sm" />
         <span className="dt-board-who-name">{actorName(t, card.requester)}</span></span>
       <span className="dt-board-card-facts">
         {card.followups > 0 && <span title={t('board.followups', { count: card.followups })}><Icon name="message" size={12} />{card.followups}</span>}
-        {card.ended && <span>{valueLabel(t, 'report', card.ended.outcome)}</span>}
+        {card.ended && !done && <span>{valueLabel(t, 'report', card.ended.outcome)}</span>}
         {card.leadMs !== undefined && delivered(card) && <span>{t('board.lead', { duration: duration(t, card.leadMs) })}</span>}
       </span>
     </div>
-    <Chain card={card} />
+    {!done && <Chain card={card} />}
   </li>
 }
 
+/** Finished cards shown before the rest fold away: the column of work that needs nobody should not set the page's length. */
+const DONE_SHOWN = 6
 function BoardColumn({ column, days, cards }: { column: Column; days: number; cards: BoardCard[] }) {
   const { t } = usePanel()
-  return <section className="dt-board-col" data-col={column.id} aria-label={t(`board.col.${column.id}`, { days })}>
+  const [all, setAll] = useState(false)
+  const folded = column.id === 'done' && !all && cards.length > DONE_SHOWN + 1
+  const shown = folded ? cards.slice(0, DONE_SHOWN) : cards
+  return <section className="dt-board-col" data-col={column.id} data-empty={cards.length ? undefined : ''}
+    aria-label={t(`board.col.${column.id}`, { days })}>
     <header className="dt-board-col-head">
       <span className="dt-board-col-dot" />
       <h3 className="dt-board-col-title">{t(`board.col.${column.id}`, { days })}</h3>
-      <span className="dt-count">{cards.length}</span>
+      <span className="dt-count"><Count value={cards.length} /></span>
       <InfoTip text={t(`board.colHint.${column.id}`)} />
     </header>
-    {cards.length ? <ul className="dt-board-cards">{cards.map(card => <Card key={card.id} card={card} />)}</ul>
+    {cards.length ? <ul className="dt-board-cards">{shown.map(card => <Card key={card.id} card={card} />)}</ul>
       : <p className="dt-board-empty">{t('board.empty')}</p>}
+    {column.id === 'done' && cards.length > DONE_SHOWN + 1 && <button type="button" className="dt-board-more" aria-expanded={!folded}
+      onClick={() => setAll(!all)}>{folded ? t('board.more', { count: cards.length - DONE_SHOWN }) : t('board.less')}
+      <Icon name="chevron-down" size={12} /></button>}
   </section>
 }
 
@@ -130,6 +141,12 @@ export function BoardPage() {
   const text = query.trim().toLowerCase()
   const shown = (card: BoardCard) => (!who || card.requester.key === who) && (!project || card.project?.id === project)
     && (!text || card.title.toLowerCase().includes(text))
+  const filtered = !!who || !!project || !!text
+  const matches = data.columns.reduce((sum, column) => sum + column.cards.filter(shown).length, 0)
+  // What each person has under way, so the filter shows where the work is before it is used.
+  const open = (key: string) => data.columns.filter(column => column.id !== 'done')
+    .reduce((sum, column) => sum + column.cards.filter(card => card.requester.key === key).length, 0)
+  const clear = () => { setWho(undefined); setProject(undefined); setQuery('') }
   return <div className="dt-board-page">
     {error && <LoadState error={error} loading={false} />}
     <PageIntro icon="board" title={t('tab.board')} text={t('board.subtitle')} />
@@ -139,8 +156,10 @@ export function BoardPage() {
       <div className="dt-board-people" role="group" aria-label={t('team.members')}>
         <button type="button" className="dt-person-pill" aria-pressed={!who} onClick={() => setWho(undefined)}>{t('board.everyone')}</button>
         {data.people.map(person => <button key={person.key} type="button" className="dt-person-pill" aria-pressed={who === person.key}
+          title={t('board.personOpen', { name: actorName(t, person), count: open(person.key) })}
           onClick={() => setWho(who === person.key ? undefined : person.key)}>
           <Avatar actor={person} id={person.key} t={t} size="sm" />{actorName(t, person)}
+          {open(person.key) > 0 && <span className="dt-person-count">{open(person.key)}</span>}
         </button>)}
       </div>
       {data.projects.length > 1 && <div className="dt-board-people" role="group" aria-label={t('tab.projects')}>
@@ -151,8 +170,13 @@ export function BoardPage() {
         </button>)}
       </div>}
       <div className="dt-search"><Input type="search" icon={<Icon name="filter" />} value={query} placeholder={t('board.filter')}
-        aria-label={t('board.filter')} onChange={event => setQuery(event.target.value)} /></div>
+        aria-label={t('board.filter')} onChange={event => setQuery(event.target.value)}
+        onKeyDown={event => { if (event.key === 'Escape') setQuery('') }} /></div>
     </div>
+    {filtered && !matches && <div className="dt-board-nomatch" role="status">
+      <span>{t('board.noMatch')}</span>
+      <Button variant="outline" size="sm" icon={<Icon name="close" size={12} />} onClick={clear}>{t('board.clear')}</Button>
+    </div>}
     <div className="dt-board" ref={columns}>
       {data.columns.map(column => <BoardColumn key={column.id} column={column} days={data.days} cards={column.cards.filter(shown)} />)}
     </div>

@@ -6,7 +6,7 @@ import { decisionMark } from './marks.ts'
 import { useAction, usePanel } from './provider.tsx'
 import { DecisionLine, Earlier, TicketLine, automatedRuns } from './rows.tsx'
 import { actorName, errorText, readableMarkers, reasonLabel, valueLabel, when, type T } from './text.ts'
-import { ActionLink, ClampText, ConfirmButton, Hint, LoadState, PageHead, Section, When } from './widgets.tsx'
+import { ActionLink, ClampText, ConfirmButton, Empty, Hint, LoadState, PageHead, Section, When } from './widgets.tsx'
 
 /** Disposition tags for a Trigger; omits `ignore` (the common case) and suppresses fanout tags when every target Ticket is already listed in `subscribed`. */
 function triggerTags(t: T, trigger: TriggerRow, subscribed?: Set<string>): ReactNode {
@@ -159,7 +159,7 @@ export function ThreadPage({ id, target }: { id: string; target?: string }) {
         earlier: folded }) =>
         <TriggerItem key={item.id} trigger={item} earlier={folded} target={target} subscribed={subscribed}
           requeue={item.actions.requeue ? { busy: requeue.busy, run: () => { void requeue.run(item.id) } } : undefined} />)}</ol>
-            : <Hint>{t('noTriggers')}</Hint>}
+            : <Empty icon="message">{t('noTriggers')}</Empty>}
       {data.earlier && <div>
         <Button variant="outline" size="sm" icon={<Icon name="chevron-down"
           size={14} />} disabled={earlier.busy} onClick={() => { void earlier.run(data) }}>

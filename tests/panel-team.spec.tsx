@@ -25,7 +25,7 @@ it('opens on the board: each Ticket a card in the column of its stage, with its 
   // Each card draws where it is in the journey: the asked step waits on a person, the working one is under way.
   expect(asking.querySelectorAll('.dt-chain-step[data-state="done"]').length).toBe(2)
   expect(asking.querySelector('.dt-chain-step[data-state="waiting"]')).not.toBeNull()
-  await click(find('BBob', '.dt-person-pill'))
+  await click(find('BBob1', '.dt-person-pill'))
   expect(cards()).toEqual(['确认按钮颜色'])
   await click(find(zh['board.everyone'], '.dt-person-pill'))
   await type(document.querySelector<HTMLInputElement>(`input[aria-label="${zh['board.filter']}"]`)!, '回归')

@@ -171,7 +171,9 @@ function Pages({ route, openTab, deploymentForm }: { route: Route; openTab: (tab
       {error && state && <p className="dt-error" role="status">{error.message}</p>}
       <SegmentedTabs className="dt-tabs" label={t('pagesLabel')} value={route.page} onChange={openTab}
         items={TABS.map(value => ({ value, label: t(`tab.${value}`), id: `dt-tab-${value}`, panelId: 'dt-page' }))} />
-      <main id="dt-page" role="tabpanel" aria-labelledby={`dt-tab-${route.page}`} className="dt-main">{page}</main>
+      {/* Keyed by the page and record shown, so opening another page fades it in while a filter change keeps it in place. */}
+      <main key={`${route.page}:${route.id ?? ''}`} id="dt-page" role="tabpanel" aria-labelledby={`dt-tab-${route.page}`}
+        className="dt-main">{page}</main>
     </div>
   </div>
 }

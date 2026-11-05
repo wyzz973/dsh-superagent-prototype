@@ -10,7 +10,7 @@ import { useAction, usePanel } from './provider.tsx'
 import { DecisionLine } from './rows.tsx'
 import { ConfigHistory, Field, Fields, ModelField, SourceField, numberOf, useBlockDraft, useSettings } from './settings-kit.tsx'
 import { localized, valueLabel, when } from './text.ts'
-import { Hint, LabelValue, LoadMore, LoadState, Section, StatusHead } from './widgets.tsx'
+import { Empty, Hint, LabelValue, LoadMore, LoadState, Section, StatusHead } from './widgets.tsx'
 
 export function EvalStatus({ filter, window, paused }: { filter: DecisionFilter; window: '24h' | undefined; paused: boolean }) {
   const { t, call, navigate } = usePanel()
@@ -33,7 +33,7 @@ export function EvalStatus({ filter, window, paused }: { filter: DecisionFilter;
     </div>
     <LoadState error={error} loading={!data} />
     {data && (data.items.length ? <ul className="dt-list">{data.items.map(decision => <DecisionLine key={decision.id}
-      decision={decision} />)}</ul> : <Hint>{t('none')}</Hint>)}
+      decision={decision} />)}</ul> : <Empty icon="decision">{t('none')}</Empty>)}
     {data?.next_offset != null && <LoadMore onMore={() => setLimit(limit + 30)} />}
   </>
 }

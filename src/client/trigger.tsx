@@ -5,7 +5,7 @@ import { usePoll } from './api.ts'
 import { Pill } from './controls.tsx'
 import { usePanel } from './provider.tsx'
 import { ThreadLine } from './rows.tsx'
-import { Hint, LoadMore, LoadState, StatusHead } from './widgets.tsx'
+import { Empty, Hint, LoadMore, LoadState, StatusHead } from './widgets.tsx'
 
 export function TriggerStatus({ filter }: { filter: ThreadFilter }) {
   const { t, call, navigate } = usePanel()
@@ -21,7 +21,7 @@ export function TriggerStatus({ filter }: { filter: ThreadFilter }) {
     </div>
     <LoadState error={error} loading={!data} />
     {data && (data.items.length ? <ul className="dt-list">{data.items.map(thread => <ThreadLine key={thread.key} thread={thread} />)}</ul>
-      : <Hint>{t('threadsNone')}</Hint>)}
+      : <Empty icon="inbox">{t('threadsNone')}</Empty>)}
     {data?.next_offset != null && <LoadMore onMore={() => setLimit(limit + 20)} />}
   </>
 }
