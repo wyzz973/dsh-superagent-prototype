@@ -198,6 +198,11 @@ export class Engine {
    * @throws UserError when the ticket is unknown, has ended, or is not retryable.
    */
   retryTicket(ticketId: string): Ticket { return this.repo.atomic(() => this.tickets.retry(ticketId)) }
+  /**
+   * A person moves a ticket to another project, by its id, before its work goes on there (see `Tickets.retarget`).
+   * @throws UserError when the ticket is unknown or has ended, or its worker works on.
+   */
+  retargetTicket(ticketId: string, project: string): Ticket { return this.repo.atomic(() => this.tickets.retarget(ticketId, project)) }
 
   // The Executor
 
@@ -296,7 +301,7 @@ export type EngineForSources = Pick<Engine, 'receive' | 'retracted' | 'bindThrea
 /** What the main Session asks of the Engine. */
 export type EngineForMainSession = Pick<Engine, 'candidate' | 'candidateDelivered' | 'decide' | 'attach' | 'reply' | 'requestStatus' | 'note'>
 /** What people ask of the Engine, through the panel or the main Session. */
-export type EngineForPeople = Pick<Engine, 'stopTicket' | 'retryTicket' | 'reevaluate' | 'unsubscribe' | 'dismiss'>
+export type EngineForPeople = Pick<Engine, 'stopTicket' | 'retryTicket' | 'retargetTicket' | 'reevaluate' | 'unsubscribe' | 'dismiss'>
 /** What Settings tells the Engine. */
 export type EngineForSettings = Pick<Engine, 'policyChanged'>
 /** What the Executor tells the Engine, and what its workers ask of it. */

@@ -4,7 +4,7 @@ import { ApiError, usePoll, type TicketPageView } from './api.ts'
 import { DisclosureRow, Dot, Icon, Tag, type IconName } from './controls.tsx'
 import { JourneySteps, MessageFlow } from './journey.tsx'
 import { decisionMark, reportDot, ticketMark } from './marks.ts'
-import { usePanel } from './provider.tsx'
+import { useAction, usePanel } from './provider.tsx'
 import { settingsRoute } from './route.ts'
 import { Earlier, ThreadLine, automatedRuns } from './rows.tsx'
 import { actorName, localized, readableMarkers, reasonLabel, valueLabel, when } from './text.ts'
@@ -12,6 +12,23 @@ import { ActionLink, ConfirmButton, ExternalLink, Hint, KeyValues, LabelValue, L
   StageMark, When } from './widgets.tsx'
 
 type Input = TicketPageView['inputs'][number]
+
+/**
+ * A ticket's project, which a person can change while its work has not gone on in it: before its worker started, or after it
+ * reported failed or blocked; the host refuses a move while the worker works on.
+ */
+function ProjectMove({ ticket, onMove }: { ticket: TicketPageView; onMove: (project: string) => Promise<unknown> }) {
+  const { t } = usePanel()
+  const move = useAction(onMove)
+  const current = ticket.project!
+  const movable = ticket.state === 'open' && ticket.projects.length > 1
+  if (!movable) return <span className="dt-ticket-project">{current.name}</span>
+  return <select className="dt-select dt-inline-select dt-ticket-project-select" value={current.id} disabled={move.busy} aria-label={t('ticket.moveProject')}
+    title={t('ticket.moveProjectHint')} onChange={event => { void move.run(event.target.value) }}>
+    {ticket.projects.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}
+  </select>
+}
+
 function InputLine({ input, earlier = [] }: { input: Input; earlier?: { id: string; at: string; preview: string }[] }) {
   const { t, navigate } = usePanel()
   const trigger = input.kind === 'trigger' ? input.trigger : undefined
@@ -140,6 +157,8 @@ export function TicketPage({ id }: { id: string }) {
       <LabelValue label={t('ticketMandateLabel')} value={valueLabel(t, 'strength', data.mandate.strength)} />
       <LabelValue label={t('ticketActorLabel')} value={`${valueLabel(t, 'source', data.mandate.actor.source)} · ${actor}`} />
       <LabelValue label={t('ticketUpdatedLabel')} value={when(data.updatedAt, t('lang'))} />
+      {data.project && <LabelValue label={t('ticket.project')} value={<ProjectMove ticket={data} onMove={project =>
+        after(call('POST tickets/:id/project', { id, body: { project } }))} />} />}
     </div>
     {ended && <Hint>{ended}</Hint>}
     <JourneySteps journey={data.journey} outcome={data.ended ? valueLabel(t, 'outcome', data.ended.outcome) : undefined} />
@@ -152,6 +171,11 @@ export function TicketPage({ id }: { id: string }) {
     {data.actions.retry && data.summary && <p className={`dt-banner${failed ? ' dt-danger' : ''}${failedText ? ' dt-mono' : ''}`}>
       <span className="dt-banner-label">{t(failed ? 'failedPrefix' : 'blockedPrefix')}</span>{data.summary}
     </p>}
+    {data.workspace?.state === 'failed' && <div className="dt-banner dt-danger dt-workspace-banner">
+      <span className="dt-banner-label">{t('ticket.workspaceFailed', { step: t(`projects.step.${data.workspace.step ?? 'prepare'}`) })}</span>
+      <span>{t('ticket.workspaceFailedHint')}</span>
+      {data.workspace.output && <pre className="dt-pre">{data.workspace.output}</pre>}
+    </div>}
     {data.deliveryError && <p className="dt-banner dt-danger dt-mono">
       <span className="dt-banner-label">{t('deliveryFailedPrefix')}</span>{data.deliveryError}
     </p>}

@@ -21,8 +21,10 @@ import type { Store } from './store.ts'
 import type { TextCache } from './cache.ts'
 import type { LinkTarget, ViewHost } from './views/records.ts'
 import type { Variable } from './execution-environment.ts'
+import { resolveProject, type ProjectMemories } from './projects.ts'
 import { policyHistory } from './settings-history.ts'
 import { overview } from './views/overview.ts'
+import { projectsView } from './views/projects.ts'
 import { settingsView } from './views/settings.ts'
 import { sourcesStatus, type SetupState } from './views/sources.ts'
 import { decisionList, search, threadDetail, threadList } from './views/threads.ts'
@@ -38,6 +40,8 @@ export interface HttpHost {
   readonly sessions: Pick<Sessions, 'status' | 'notify' | 'delivery'>
   readonly settings: Pick<Settings, 'view' | 'save' | 'pause' | 'sync' | 'refreshLabels'>
   readonly engine: EngineForPeople
+  /** Project memory, which people confirm or reject in the panel. */
+  readonly memory: Pick<ProjectMemories, 'confirm' | 'reject'>
   readonly executor: Pick<DshExecutor, 'activeCount'>
   readonly health: Record<string, Health>
   readonly machine: Machine
@@ -123,7 +127,8 @@ export type StateView = ReturnType<typeof stateView>
 function ticketPage(runtime: HttpHost, id: string) {
   const detail = ticketDetail(views(runtime), id), ticket = runtime.store.tickets.get(id)
   if (!detail || !ticket) throw new RouteError(404, 'Ticket not found')
-  return { ...detail, journey: journey(views(runtime), ticket), environment: runtime.configured() ? runtime.ticketEnvironment(ticket) : [] }
+  const projects = runtime.store.settings().projects.projects.map(project => ({ id: project.id, name: project.name }))
+  return { ...detail, journey: journey(views(runtime), ticket), environment: runtime.configured() ? runtime.ticketEnvironment(ticket) : [], projects }
 }
 export type TicketPageView = ReturnType<typeof ticketPage>
 function promptsView(runtime: HttpHost, revision: number | undefined, offset: number) {
@@ -153,7 +158,7 @@ const count = z.coerce.number().int().nonnegative()
 const PromptsQuery = z.object({ revision: count.optional(), offset: count.default(0) })
 const WindowQuery = (fallback: number) => z.object({ days: z.coerce.number().int().min(1).max(90).catch(fallback) })
 const SourceBlock = z.templateLiteral(['source:', z.string().regex(/^[a-z][a-z0-9-]*$/)])
-const SettingsBlockSchema = z.union([z.enum(['policy', 'eval', 'executor']), SourceBlock])
+const SettingsBlockSchema = z.union([z.enum(['policy', 'eval', 'executor', 'projects']), SourceBlock])
 const SaveRequest = z.object({ value: z.unknown(), revision: z.number().int().nonnegative() })
 
 function routes(runtime: HttpHost): Routes {
@@ -203,6 +208,17 @@ function routes(runtime: HttpHost): Routes {
     'GET tickets/:id': ({ params }) => ticketPage(runtime, params.id),
     'POST tickets/:id/retry': ({ params }) => { const id = ticket(params.id); runtime.engine.retryTicket(id); return { retried: true } },
     'POST tickets/:id/stop': ({ params }) => { const id = ticket(params.id); runtime.engine.stopTicket(id); return { stopped: true } },
+    'POST tickets/:id/project': async ({ params, body }) => {
+      const id = ticket(params.id)
+      const { project } = z.object({ project: z.string() }).parse(await body())
+      // Only a project there is; `resolveProject` refuses any other name.
+      runtime.engine.retargetTicket(id, resolveProject(store.settings(), undefined, project)!)
+      runtime.requestPass()
+      return { moved: true }
+    },
+    'GET projects': () => projectsView(views(runtime)),
+    'POST projects/memory/:id/confirm': async ({ params }) => ({ memory: await runtime.memory.confirm(params.id) }),
+    'POST projects/memory/:id/reject': ({ params }) => ({ memory: runtime.memory.reject(params.id) }),
     'POST executor/pause': async ({ body }) => runtime.settings.pause(z.object({ paused: z.boolean() }).parse(await body()).paused, 'panel'),
     'PUT settings/:block': async ({ params, body }) => {
       const block = SettingsBlockSchema.parse(params.block)

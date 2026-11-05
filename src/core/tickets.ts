@@ -42,7 +42,7 @@ export class Tickets extends EnginePart {
     const primary = this.repo.triggers.get(evaluation.primary ?? triggerIds.at(-1)!)
     const origin = { triggerId: primary?.id ?? triggerIds[0]!, triggerIds }
     let ticket: Ticket = { id, title: outcome.title, decisionId, mandate, channels: [], assignments: [], inputs: [], undelivered: [],
-      createdAt: at, updatedAt: at, origin }
+      createdAt: at, updatedAt: at, origin, ...outcome.project ? { project: outcome.project } : {} }
     for (const triggerId of triggerIds) {
       const channel = this.repo.triggers.get(triggerId)?.channel
       if (channel && !ticket.channels.some(item => sameChannel(item, channel))) ticket.channels.push(channel)
@@ -177,6 +177,33 @@ export class Tickets extends EnginePart {
     this.repo.tickets.save(ticket)
     this.options.executor.stop(ticket, latest, 'retried')
     this.options.executor.start(ticket, assignment)
+    return ticket
+  }
+  /**
+   * Moves an open ticket to another project before its work goes on there: the Executor names its directory in that project,
+   * and a ticket whose worker reported failed or blocked starts a new Assignment in it, as a retry does.
+   * @throws UserError when the ticket is unknown or has ended, or its worker works on (`workStarted`).
+   */
+  retarget(ticketId: string, project: string): Ticket {
+    const ticket = this.require(ticketId)
+    if (!liveTicket(ticket)) throw new UserError('ticketEnded')
+    const latest = latestAssignment(ticket)
+    // A worker that works on does so in the old project's checkout; it reports, or a person stops it, first.
+    const retry = canRetry(ticket) && !!latest
+    if (latest?.state === 'running' && !retry) throw new UserError('workStarted')
+    const moved = this.options.relocateTicket?.({ ...ticket, project }) ?? { ...ticket, project }
+    Object.assign(ticket, { project: moved.project, ...moved.execution ? { execution: moved.execution } : {} })
+    if (retry) {
+      this.endAssignment(ticket, latest, 'retried')
+      this.requeueUntaken(ticket, latest)
+    }
+    const assignment = retry ? this.newAssignment(ticket) : undefined
+    ticket.updatedAt = this.now()
+    this.repo.tickets.save(ticket)
+    if (assignment) {
+      this.options.executor.stop(ticket, latest!, 'retried')
+      this.options.executor.start(ticket, assignment)
+    }
     return ticket
   }
   /**

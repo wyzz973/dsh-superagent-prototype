@@ -11,6 +11,9 @@ import { fileURLToPath } from 'node:url'
 import { Store } from '../src/app/store.ts'
 import { board, engine, journey, team } from '../src/app/views/team.ts'
 import { overview } from '../src/app/views/overview.ts'
+import { projectsView } from '../src/app/views/projects.ts'
+import { ProjectMemories } from '../src/app/projects.ts'
+import { ProjectsConfigSchema } from '../src/policy.ts'
 import { decisionList, threadDetail, threadList } from '../src/app/views/threads.ts'
 import { executorLoad, ticketDetail, ticketList } from '../src/app/views/tickets.ts'
 import type { ViewHost } from '../src/app/views/records.ts'
@@ -28,6 +31,11 @@ const sources = new SourceRegistry(() => store.settings())
 sources.register(feishuKind); sources.register(githubKind)
 const host: ViewHost = { store, sources, links: channel => ({ url: channel.source === 'github'
   ? `https://github.com/acme/widgets/issues/${channel.address.number ?? ''}` : '', label: { zh: '原消息', en: 'Original message' } }) }
+// Project memory decided in the preview saves the projects block straight to the Store, as the panel's save would.
+const memory = new ProjectMemories({ store, settings: { save: async (_block, value) => {
+  store.saveSettings({ ...store.settings(), projects: ProjectsConfigSchema.parse(value) })
+  return { saved: true, revision: 0, policy_changed: false, restarting: false, context_delivery: 'injected' as const }
+} } })
 const running = () => store.tickets.list().filter(ticket => ticket.assignments.at(-1)?.state === 'running' && !ticket.ended
   && ticket.assignments.at(-1)?.report?.state === 'progress').length
 const load = () => executorLoad(store, running())
@@ -45,10 +53,12 @@ const answer = (path: string, query: URLSearchParams): unknown => {
     case 'team': return team(host, agent(), Number(query.get('days') ?? 14))
     case 'engine': return engine(host, agent(), Number(query.get('days') ?? 1))
     case 'overview': return overview(host, {}, 'demo', load())
+    case 'projects': return projectsView(host)
     case 'tickets': {
       if (!id) return ticketList(host, (query.get('state') ?? 'open') as 'open', offset, limit)
       const ticket = store.tickets.get(id), detail = ticketDetail(host, id)
-      return ticket && detail ? { ...detail, journey: journey(host, ticket), environment: [] } : undefined
+      return ticket && detail ? { ...detail, journey: journey(host, ticket), environment: [],
+        projects: store.settings().projects.projects.map(project => ({ id: project.id, name: project.name })) } : undefined
     }
     case 'threads': return id ? threadDetail(host, decodeURIComponent(id), undefined, 50) : threadList(host,
       (query.get('filter') ?? 'subscribed') as 'subscribed', offset, limit)
@@ -56,17 +66,41 @@ const answer = (path: string, query: URLSearchParams): unknown => {
     default: return undefined
   }
 }
+/** The changes the preview carries out: project memory decisions, project saves and moving a ticket to another project. */
+const change = async (method: string, path: string, body: unknown): Promise<unknown> => {
+  const parts = path.split('/')
+  if (method === 'POST' && parts[0] === 'projects' && parts[1] === 'memory' && parts[3] === 'confirm') return { memory: await memory.confirm(parts[2]!) }
+  if (method === 'POST' && parts[0] === 'projects' && parts[1] === 'memory' && parts[3] === 'reject') return { memory: memory.reject(parts[2]!) }
+  if (method === 'PUT' && path === 'settings/projects') {
+    store.saveSettings({ ...store.settings(), projects: ProjectsConfigSchema.parse((body as { value: unknown }).value) })
+    return { saved: true, revision: 0, policy_changed: false, restarting: false, context_delivery: 'injected' }
+  }
+  if (method === 'POST' && parts[0] === 'tickets' && parts[2] === 'project') {
+    const ticket = store.tickets.get(parts[1]!), project = (body as { project: string }).project
+    if (!ticket?.execution) return undefined
+    store.tickets.save({ ...ticket, project, execution: { ...ticket.execution, directory: `/srv/dsh-superagent/work/${project}/${ticket.execution.name}` } })
+    return { moved: true }
+  }
+  return undefined
+}
+const read = (req: import('node:http').IncomingMessage): Promise<unknown> => new Promise(done => {
+  let text = ''
+  req.on('data', chunk => { text += String(chunk) }).on('end', () => { try { done(text ? JSON.parse(text) : {}) } catch { done({}) } })
+})
 const send = (res: ServerResponse, status: number, type: string, body: string | Buffer) => {
   res.writeHead(status, { 'content-type': type, 'cache-control': 'no-store' }); res.end(body)
 }
 createServer((req, res) => {
   const url = new URL(req.url ?? '/', 'http://localhost')
   if (url.pathname.startsWith('/orchestrator/api/')) {
-    try {
-      const value = req.method === 'GET' ? answer(url.pathname.slice('/orchestrator/api/'.length), url.searchParams) : undefined
-      if (value === undefined) send(res, 404, 'application/json', JSON.stringify({ error: '预览模式不提供这一项 · Not available in the preview' }))
-      else send(res, 200, 'application/json', JSON.stringify(value))
-    } catch (error) { send(res, 500, 'application/json', JSON.stringify({ error: String(error) })) }
+    const path = url.pathname.slice('/orchestrator/api/'.length)
+    void (async () => {
+      try {
+        const value = req.method === 'GET' ? answer(path, url.searchParams) : await change(req.method ?? '', path, await read(req))
+        if (value === undefined) send(res, 404, 'application/json', JSON.stringify({ error: '预览模式不提供这一项 · Not available in the preview' }))
+        else send(res, 200, 'application/json', JSON.stringify(value))
+      } catch (error) { send(res, 400, 'application/json', JSON.stringify({ error: String(error instanceof Error ? error.message : error) })) }
+    })()
     return
   }
   const files: Record<string, [string, string]> = { '/': ['index.html', 'text/html; charset=utf-8'], '/main.js': ['dist/main.iife.js', 'text/javascript'],

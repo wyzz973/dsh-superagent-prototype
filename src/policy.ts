@@ -96,15 +96,56 @@ export const ExecutorConfigSchema = z.object({
   blockedCommands: z.array(CommandNameSchema).default([]),
 }).strict()
 export const SourceInstanceSchema = z.object({ enabled: z.boolean().default(true), config: z.record(z.string(), z.unknown()).default({}) }).strict()
+export const ProjectIdSchema = z.string().regex(/^[a-z][a-z0-9-]{0,31}$/, 'Lowercase letters, digits and hyphens, starting with a letter, at most 32')
+/** A path inside a checkout: relative, without `..` segments. */
+const InsidePath = z.string().trim().min(1).max(300).refine(path => !path.startsWith('/') && !path.split('/').includes('..'), 'A path inside the checkout, without ..')
+const WorkspaceCommand = z.string().trim().min(1).max(LIMITS.workspaceCommand)
+/**
+ * How a Ticket's checkout of a project is made ready, when the project has no prepare command of its own: what is copied from
+ * the person's checkout (files git ignores, such as `.env.local`, and the entries of its `.worktreeinclude`), which directories
+ * are cloned copy-on-write (such as `node_modules`), the commands that bootstrap it, the command that checks it works, and
+ * the ports each Ticket gets of its own.
+ */
+export const WorkspaceSchema = z.object({
+  copy: z.array(InsidePath).max(100).default([]),
+  clone: z.array(InsidePath).max(20).default([]),
+  bootstrap: z.array(WorkspaceCommand).max(20).default([]),
+  verify: z.string().trim().max(LIMITS.workspaceCommand).default(''),
+  ports: z.array(z.string().regex(/^[a-z][a-z0-9_]{0,15}$/, 'A short lowercase name such as web')).max(10)
+    .refine(names => new Set(names).size === names.length, 'Duplicate port names').default([]),
+}).strict()
+export type Workspace = z.infer<typeof WorkspaceSchema>
+/**
+ * A project the agent works on: a repository checkout on this machine and how a Ticket's own checkout of it is made. `aliases`
+ * and `description` help the main Session tell projects apart; `bindings` are Thread key prefixes, such as a Feishu chat's
+ * `feishu:oc_…`, whose requests belong to the project unless the request names another.
+ */
+export const ProjectSchema = z.object({
+  id: ProjectIdSchema,
+  name: z.string().trim().min(1).max(80),
+  description: z.string().trim().max(300).default(''),
+  aliases: z.array(z.string().trim().min(1).max(40)).max(20).default([]),
+  bindings: z.array(z.string().trim().min(1).max(200)).max(20).default([]),
+  checkout: z.string().trim().refine(path => path === '' || path.startsWith('/'), 'An absolute path, or empty for an empty directory').default(''),
+  base: z.string().trim().max(200).regex(/^[^\s;&|`$]*$/, 'A git revision, such as origin/main').default(''),
+  prepare: z.string().max(LIMITS.prepareCommand).default(''),
+  workspace: WorkspaceSchema.default(() => WorkspaceSchema.parse({})),
+}).strict()
+export type Project = z.infer<typeof ProjectSchema>
+export const ProjectsConfigSchema = z.object({
+  projects: z.array(ProjectSchema).max(LIMITS.projects).refine(projects => new Set(projects.map(project => project.id)).size === projects.length,
+    'Duplicate project IDs').default([]),
+}).strict()
 export const SettingsSchema = z.object({
   paused: z.boolean().default(false),
   sources: z.record(z.string().regex(/^[a-z][a-z0-9-]*$/), SourceInstanceSchema).default({}),
   policy: PolicyConfigSchema.default(() => PolicyConfigSchema.parse({})),
   eval: EvalConfigSchema.default(() => EvalConfigSchema.parse({})),
   executor: ExecutorConfigSchema.default(() => ExecutorConfigSchema.parse({})),
+  projects: ProjectsConfigSchema.default(() => ProjectsConfigSchema.parse({})),
 }).strict()
 export type Settings = z.infer<typeof SettingsSchema>
-export type SettingsBlock = 'policy' | 'eval' | 'executor' | `source:${string}`
+export type SettingsBlock = 'policy' | 'eval' | 'executor' | 'projects' | `source:${string}`
 export type SettingsSave = SettingsBlock | 'pause'
 export type SettingsOrigin = 'panel' | 'tool' | 'sync'
 

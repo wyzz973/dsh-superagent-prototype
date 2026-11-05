@@ -14,6 +14,7 @@ import { HOME, TABS, initialLocation, lastSettingsGroup, remember, routeLabel, s
   type Tab } from './route.ts'
 import { SettingsPage } from './settings.tsx'
 import { SourceStatus } from './source.tsx'
+import { ProjectsPage } from './projects.tsx'
 import { TeamPage } from './team.tsx'
 import { actorName, errorText, reasonLabel, valueLabel, type T, readableMarkers } from './text.ts'
 import { ThreadPage } from './thread.tsx'
@@ -150,6 +151,7 @@ function Pages({ route, openTab, deploymentForm }: { route: Route; openTab: (tab
     switch (route.page) {
       case 'board': return <BoardPage />
       case 'team': return <TeamPage />
+      case 'projects': return <ProjectsPage />
       case 'overview': return <OverviewPage />
       case 'source': return <SourceStatus />
       case 'trigger': return route.id !== undefined ? <ThreadPage key={route.id} id={route.id} target={route.query?.trigger} />
@@ -164,7 +166,7 @@ function Pages({ route, openTab, deploymentForm }: { route: Route; openTab: (tab
   })()
   return <div className="dt-page">
     {/* The board lays its columns side by side, so it takes the page's full width. */}
-    <div className={route.page === 'board' ? 'dt-column dt-column-wide' : 'dt-column'}>
+    <div className={route.page === 'board' || route.page === 'projects' ? 'dt-column dt-column-wide' : 'dt-column'}>
       <Header masterId={state?.masterId} />
       {error && state && <p className="dt-error" role="status">{error.message}</p>}
       <SegmentedTabs className="dt-tabs" label={t('pagesLabel')} value={route.page} onChange={openTab}

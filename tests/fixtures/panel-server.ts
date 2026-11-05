@@ -14,7 +14,7 @@ import type { DroppedReply, HistoryView, Problem, PromptsView, SetupView, Source
   TriggerRow } from '../../src/client/api.ts'
 import { BOARD_COLUMNS } from '../../src/app/views/team.ts'
 import { SETUP_FIELDS } from '../../src/deployment.ts'
-import { EvalConfigSchema, ExecutorConfigSchema, PolicyConfigSchema, SettingsSchema } from '../../src/policy.ts'
+import { EvalConfigSchema, ExecutorConfigSchema, PolicyConfigSchema, ProjectsConfigSchema, SettingsSchema } from '../../src/policy.ts'
 import { SetupError, type SetupCode } from '../../src/setup.ts'
 import { feishuChannel } from '../../src/sources/feishu-trigger.ts'
 import { githubChannel } from '../../src/sources/github-trigger.ts'
@@ -110,6 +110,9 @@ export interface PanelServer {
   dropped: DroppedReply[]
   failing: Extract<Problem, { kind: 'outgoing' }>['outgoing'][]
   board: ApiResponse<'GET board'>; team: ApiResponse<'GET team'>; engine: ApiResponse<'GET engine'>
+  projects: ApiResponse<'GET projects'>
+  /** Project memory confirmed or rejected, by id, and the projects tickets were moved to, by ticket. */
+  decided: Record<string, 'confirmed' | 'rejected'>; moved: Record<string, string>
 }
 export let server: PanelServer
 
@@ -169,7 +172,8 @@ const settingsView = (): ApiResponse<'GET settings'> => ({
   policyVersion: 'abcdef1234567890',
   blocks: { policy: { value: server.settings.policy, revision: server.revisions.policy ?? 0 },
     eval: { value: server.settings.eval, revision: server.revisions.eval ?? 0 },
-    executor: { value: server.settings.executor, revision: server.revisions.executor ?? 0 } },
+    executor: { value: server.settings.executor, revision: server.revisions.executor ?? 0 },
+    projects: { value: { projects: [] }, revision: server.projects.revision } },
   sources: sourceSettings(),
   environment: { root: '/srv/dsh-superagent/work', variables: [
     { owner: 'executor', enabled: true, variables: [{ key: 'DSH_SUPERAGENT_DIR', description: { zh: '工单的执行目录',
@@ -187,8 +191,26 @@ export const boardCard = (row: TicketRow, fields: Partial<BoardCard> = {}): Boar
 function boardOf(rows: TicketRow[]): ApiResponse<'GET board'> {
   const cards = rows.map(row => boardCard(row))
   return { days: 7, columns: BOARD_COLUMNS.map(id => ({ id, cards: cards.filter(card => card.column === id) })),
-    people: [{ key: `feishu:${MEMBER}`, ...actor('feishu', MEMBER) }] }
+    people: [{ key: `feishu:${MEMBER}`, ...actor('feishu', MEMBER) }], projects: [] }
 }
+type ProjectCardView = ApiResponse<'GET projects'>['projects'][number]
+/** A project of the fixture: the order service, bound to the team chat, with a recipe and one checkout that failed its check. */
+export const projectCard = (fields: Partial<ProjectCardView> = {}): ProjectCardView => ({ id: 'orders', name: '订单服务',
+  description: '下单与支付回调', aliases: ['订单', '后台'], bindings: [{ key: 'feishu:oc_team', source: 'feishu', name: '研发群' }],
+  checkout: '/Users/alice/code/orders', base: '', prepare: '',
+  workspace: { copy: ['.env.local'], clone: ['node_modules'], bootstrap: ['pnpm install --offline'], verify: 'pnpm test:smoke', ports: ['web'] },
+  open: 2, stages: { queued: 0, working: 1, person: 1, idle: 0 }, delivered: 3, problems: 1,
+  checkouts: [{ ticket: { id: 't4', title: '截图工具', open: true }, state: 'failed', at: '2026-09-23T00:00:00Z', step: 'verify',
+    output: 'Error: REDIS_URL is not set', ports: { web: 20000 } },
+    { ticket: { id: 't1', title: '修复回归', open: true }, state: 'ready', at: '2026-09-22T00:01:00Z', ports: { web: 20010 } }],
+  memory: { proposed: 1, hints: [] }, ...fields })
+type MemoryEntryView = ApiResponse<'GET projects'>['memory'][number]
+export const memoryEntry = (fields: Partial<MemoryEntryView> = {}): MemoryEntryView => ({ id: 'm1', project: 'orders', kind: 'workspace',
+  text: '缺 REDIS_URL 时冒烟测试失败', change: { copy: ['.env.redis'] }, from: { ticketId: 't4' }, at: '2026-09-23T00:00:00Z',
+  state: 'proposed', ticket: { id: 't4', title: '截图工具' }, ...fields })
+const projectsOf = (): ApiResponse<'GET projects'> => ({ revision: 2, projects: [projectCard()], unassigned: 0,
+  memory: [memoryEntry(), memoryEntry({ id: 'm2', kind: 'hint', text: '研发群里说的「后台」指订单服务', change: undefined,
+    from: { actor: { source: 'feishu', id: MEMBER }, triggerId: 'e1' }, actor: actor('feishu', MEMBER), quote: '后台就是订单服务', ticket: undefined })] })
 const teamOf = (): ApiResponse<'GET team'> => ({ days: 14,
   agent: { account: 'agent-bot', running: 1, queued: 0, maxWorkers: 4, paused: false, open: 2, waiting: 1, delivered: 3, total: 6 },
   members: [{ key: `feishu:${MEMBER}`, actor: actor('feishu', MEMBER), requested: 4, open: 2, waiting: 1, delivered: 2, inferred: 0,
@@ -246,6 +268,7 @@ const ticketDetail = (): TicketPageView => ({
   channels: [{ source: 'feishu', url: 'https://applink.feishu.cn/client/chat/open?openChatId=oc_1', label: { zh: '飞书消息',
     en: 'Feishu message' } },
     { source: 'github', url: 'https://github.com/acme/widgets/issues/42', label: { zh: 'GitHub #42', en: 'GitHub #42' } }],
+  projects: [],
   assignments: [{ id: 'a1', state: 'running', createdAt: '2026-09-22T00:00:00Z',
     startedAt: '2026-09-22T00:01:00Z',
     report: { state: 'progress', summary: 'working', at: '2026-09-22T00:02:00Z' } }],
@@ -289,7 +312,7 @@ function initial(): PanelServer {
       defaults: defaultPrompts(), parts: Object.entries(builtInParts()).map(([key, part]) => ({ key, ...part, base: builtInBase(part.text) })),
       defaultChanged: [], revisions: [{ ...defaults, changed: [] }], sessions: [], notificationPending: false, next_offset: null },
     tickets: { open: [ticketSummary()], ended: [ended] }, ticketDetails: { t1: ticketDetail() },
-    board: boardOf([ticketSummary(), ended]), team: teamOf(), engine: engineOf(),
+    board: boardOf([ticketSummary(), ended]), team: teamOf(), engine: engineOf(), projects: projectsOf(), decided: {}, moved: {},
     threads: [threadSummary()], threadPages: threadPage,
     person: [ticketSummary({ attention: { id: 'q1', question: '需要确认按钮颜色' }, note: { text: '需要确认按钮颜色', error: false }, reply },
       { stage: 'person', action: 'answer' }),
@@ -369,6 +392,27 @@ const ROUTES: { [K in keyof Api]: Route<K> } = {
     return ticket.actions.retry ? { retried: true } : refuse(400, 'Only an open ticket can be retried, and only when its worker last reported failed or blocked and no person has sent a message since, or when delivering an Input to its worker failed',
       { code: 'notRetryable', values: {} })
   } },
+  'POST tickets/:id/project': { body: true, answer: ({ params, body }) => {
+    if (!ticketOf(params.id)) return refuse(404, 'Ticket not found')
+    if (!server.projects.projects.some(project => project.id === body.project)) return refuse(404, `Unknown project ${body.project}`,
+      { code: 'unknownProject', values: { project: body.project, projects: server.projects.projects.map(project => project.id).join(', ') } })
+    server.moved[params.id] = body.project
+    return { moved: true }
+  } },
+  'GET projects': { answer: () => ({ ...server.projects, memory: server.projects.memory.map(entry => server.decided[entry.id]
+    ? { ...entry, state: server.decided[entry.id]!, decidedAt: '2026-09-24T00:00:00Z' } : entry) }) },
+  'POST projects/memory/:id/confirm': { answer: ({ params }) => {
+    const entry = server.projects.memory.find(item => item.id === params.id)
+    if (!entry) return refuse(404, `Unknown project memory ${params.id}`)
+    server.decided[params.id] = 'confirmed'
+    return { memory: { ...entry, state: 'confirmed' } }
+  } },
+  'POST projects/memory/:id/reject': { answer: ({ params }) => {
+    const entry = server.projects.memory.find(item => item.id === params.id)
+    if (!entry) return refuse(404, `Unknown project memory ${params.id}`)
+    server.decided[params.id] = 'rejected'
+    return { memory: { ...entry, state: 'rejected' } }
+  } },
   'POST tickets/:id/stop': { answer: ({ params }) => {
     if (!ticketOf(params.id)) return refuse(404, 'Ticket not found')
     server.tickets.open = []; server.person = server.person.filter(ticket => ticket.id !== params.id)
@@ -380,6 +424,13 @@ const ROUTES: { [K in keyof Api]: Route<K> } = {
     return { paused: body.paused }
   } },
   'PUT settings/:block': { body: true, answer: ({ params: { block }, body }) => {
+    if (block === 'projects') {
+      if (body.revision !== server.projects.revision) return refuse(409, 'Settings changed. Reload before saving.')
+      const { projects } = ProjectsConfigSchema.parse(body.value)
+      server.projects = { ...server.projects, revision: server.projects.revision + 1,
+        projects: projects.map(project => ({ ...projectCard(), ...project, bindings: project.bindings.map(key => ({ key, source: key.split(':')[0]! })) })) }
+      return { revision: server.projects.revision, restarting: false }
+    }
     const source = block.startsWith('source:') ? KINDS.find(kind => `source:${kind.kind}` === block) : undefined
     if (!['policy', 'eval', 'executor'].includes(block) && !source) return block.startsWith('source:') ? refuse(404, 'Source not found')
       : refuse(400, 'Invalid settings: block')

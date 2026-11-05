@@ -6,6 +6,7 @@ import { allowedSender, listedBot } from '../../policy.ts'
 import type { ChannelLink, Localized } from '../../sources/kind.ts'
 import type { SourceRegistry } from '../../sources/registry.ts'
 import { workerSessionId } from '../../executor/dsh.ts'
+import { ticketProject } from '../projects.ts'
 import type { Store } from '../store.ts'
 import { attribute, markdown, plain, preview, readable } from './text.ts'
 
@@ -140,7 +141,7 @@ export function threadFacts(store: Store, thread: Thread) {
   return { key: thread.key, source: thread.ref.source, title: threadTitle(store, thread), ...url ? { url } : {}, facts: (thread.meta.facts ?? {}) as ThreadFacts }
 }
 export type ThreadFactsView = ReturnType<typeof threadFacts>
-export const ticketLine = (view: Snapshot, ticket: Ticket) => ({ ...ticketSummary(ticket),
+export const ticketLine = (view: Snapshot, ticket: Ticket) => ({ ...ticketSummary(ticket), ...ticketProject(view.store, ticket),
   threads: view.threadsOf(ticket.id).map(thread => threadFacts(view.store, thread)) })
 export function threadTitle(store: Pick<Store, 'read'>, thread: Thread): string {
   const label = attribute(thread.meta.label)

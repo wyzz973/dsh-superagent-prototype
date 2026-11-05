@@ -4,7 +4,9 @@
  * shapes, so the real views read them.
  */
 import type { Assignment, Decision, ReportState, Thread, Ticket, TicketOutcome, Trigger } from '../src/core/index.ts'
+import type { ProjectMemory, WorkspaceState } from '../src/app/projects.ts'
 import type { Store } from '../src/app/store.ts'
+import { KV } from '../src/kv.ts'
 
 const MINUTE = 60_000
 const ago = (minutes: number, now = Date.now()) => new Date(now - minutes * MINUTE).toISOString()
@@ -24,6 +26,16 @@ export const SETTINGS = {
   sources: { feishu: { enabled: true, config: { cli: 'lark-bot', chats: [{ chatId: 'oc_team', name: '前端研发群', listen: 'mentions' }] } },
     github: { enabled: true, config: { repository: 'acme/widgets', cli: 'gh-agent' } } },
   executor: { maxWorkers: 4 },
+  projects: { projects: [
+    { id: 'web', name: '前端 Web', description: '官网、控制台和个人中心的前端', aliases: ['前端', '网页', '控制台'], bindings: ['feishu:oc_team'],
+      checkout: '/Users/zhangwei/code/widgets-web', base: 'origin/main', prepare: '',
+      workspace: { copy: ['.env.local'], clone: ['node_modules'], bootstrap: ['pnpm install --offline'], verify: 'pnpm test:smoke', ports: ['web'] } },
+    { id: 'api', name: '订单服务', description: '下单、支付回调和订单查询的后端服务', aliases: ['后端', '订单', 'API'], bindings: ['github'],
+      checkout: '/Users/zhangwei/code/widgets-api', base: '', prepare: '',
+      workspace: { copy: ['.env.local', 'config/application-local.yml'], clone: [], bootstrap: ['make deps'], verify: 'make check', ports: ['http', 'grpc'] } },
+    { id: 'mobile', name: '移动端 App', description: 'iOS 和 Android 客户端', aliases: ['App', '客户端'], bindings: [],
+      checkout: '/Users/lina/code/widgets-app', base: '', prepare: '', workspace: { copy: ['.env'], clone: [], bootstrap: [], verify: '', ports: [] } },
+  ] },
 }
 
 interface Spec {
@@ -32,37 +44,43 @@ interface Spec {
   at: 'queued' | 'working' | ReportState | TicketOutcome | 'question'
   pr?: number; ci?: 'passed' | 'failed' | 'running'; followups?: string[]; summary?: string; question?: string; proactive?: true
   replies?: string[]
+  /** The project it works on, and how its checkout went when not ready. */
+  project?: 'web' | 'api' | 'mobile'; workspace?: Pick<WorkspaceState, 'state' | 'step' | 'output'>
 }
 const SPECS: Spec[] = [
-  { id: 'login', title: '登录页「记住我」复选框在暗色模式下不可见', who: 0, ask: '@Superagent 登录页的「记住我」在暗色模式下看不见，帮忙修一下', minutes: 14,
+  { id: 'login', project: 'web', title: '登录页「记住我」复选框在暗色模式下不可见', who: 0, ask: '@Superagent 登录页的「记住我」在暗色模式下看不见，帮忙修一下', minutes: 14,
     at: 'working', pr: 128, ci: 'running', replies: ['好的，我来修复暗色模式下「记住我」复选框的对比度，完成后提交 PR。'] },
-  { id: 'export', title: '导出 CSV 时日期列变成时间戳', who: 2, ask: '@agent-bot exported CSV shows epoch numbers in the date column', minutes: 46,
+  { id: 'export', project: 'api', title: '导出 CSV 时日期列变成时间戳', who: 2, ask: '@agent-bot exported CSV shows epoch numbers in the date column', minutes: 46,
     at: 'ready', pr: 131, ci: 'passed', summary: 'PR #131 已就绪：导出时按用户时区格式化日期，补了 3 个单测，CI 通过。',
     replies: ['On it: the CSV export will format dates instead of epoch numbers.', 'PR #131 is ready for review: dates are formatted in the user\'s time zone.'] },
-  { id: 'i18n', title: '设置页英文文案「Notifcation」拼写错误', who: 1, ask: '设置页英文那里写成了 Notifcation', minutes: 95, at: 'merged', pr: 126,
+  { id: 'i18n', project: 'web', title: '设置页英文文案「Notifcation」拼写错误', who: 1, ask: '设置页英文那里写成了 Notifcation', minutes: 95, at: 'merged', pr: 126,
     proactive: true, summary: '修正拼写并检查同页其他文案。', replies: ['我来修正设置页的拼写错误。'] },
-  { id: 'avatar', title: '个人主页头像上传超过 2MB 时没有提示', who: 4, ask: '@Superagent 头像超过 2MB 上传失败，但页面没任何提示', minutes: 32,
+  { id: 'avatar', project: 'web', title: '个人主页头像上传超过 2MB 时没有提示', who: 4, ask: '@Superagent 头像超过 2MB 上传失败，但页面没任何提示', minutes: 32,
     at: 'question', question: '超过 2MB 时，是直接在前端压缩，还是提示用户重新选择？两种都能做，需要你定一下产品行为。',
     replies: ['收到，我先排查头像上传超过 2MB 时缺少提示的问题。'] },
-  { id: 'flaky', title: '支付回调集成测试偶发超时', who: 3, ask: '@agent-bot payment webhook test flakes on CI about 1 in 5 runs', minutes: 180,
+  { id: 'flaky', project: 'api', title: '支付回调集成测试偶发超时', who: 3, ask: '@agent-bot payment webhook test flakes on CI about 1 in 5 runs', minutes: 180,
     at: 'blocked', pr: 133, ci: 'failed', summary: '复现需要沙箱的支付密钥，当前执行环境没有；已在 PR 草稿中留下排查记录。',
     replies: ['Looking into the flaky payment webhook test.'] },
-  { id: 'table', title: '订单表格在窄屏下横向溢出', who: 0, ask: '@Superagent 订单表格在 iPad 竖屏下会溢出', minutes: 4, at: 'queued' },
-  { id: 'search', title: '搜索框输入中文时会提前触发搜索', who: 1, ask: '@Superagent 搜索框打中文拼音的时候就开始搜了', minutes: 7, at: 'queued' },
-  { id: 'deps', title: '升级 axios 到 1.8 修复安全告警', who: 2, ask: '@agent-bot please bump axios for the security advisory', minutes: 300,
+  { id: 'table', project: 'web', title: '订单表格在窄屏下横向溢出', who: 0, ask: '@Superagent 订单表格在 iPad 竖屏下会溢出', minutes: 4, at: 'queued' },
+  { id: 'search', project: 'web', workspace: { state: 'preparing', step: 'bootstrap' }, title: '搜索框输入中文时会提前触发搜索', who: 1, ask: '@Superagent 搜索框打中文拼音的时候就开始搜了', minutes: 7, at: 'queued' },
+  { id: 'orders', project: 'api', title: '订单列表接口分页参数越界时返回 500', who: 3, ask: '@agent-bot GET /orders?page=0 returns 500', minutes: 22,
+    at: 'failed', summary: 'Preparing the checkout of project api failed at its verify step: make check: REDIS_URL is not set',
+    workspace: { state: 'failed', step: 'verify', output: 'make check\n  → go test ./... -run Smoke\npanic: config: REDIS_URL is not set\n    at config.Load (internal/config/config.go:41)\nmake: *** [check] Error 2' },
+    replies: ['Looking into the 500 on out-of-range page numbers.'] },
+  { id: 'deps', project: 'web', title: '升级 axios 到 1.8 修复安全告警', who: 2, ask: '@agent-bot please bump axios for the security advisory', minutes: 300,
     at: 'waiting', pr: 129, ci: 'passed', summary: '已升级并通过 CI，等待 @wangfang 确认是否同时升级 msw。',
     followups: ['msw 先别动，下周统一升级'], replies: ['Bumping axios to 1.8 for the advisory.'] },
-  { id: 'toast', title: '保存成功的提示停留时间太短', who: 4, ask: '保存成功提示一闪就没了', minutes: 26 * 60, at: 'merged', pr: 124, proactive: true,
+  { id: 'toast', project: 'web', title: '保存成功的提示停留时间太短', who: 4, ask: '保存成功提示一闪就没了', minutes: 26 * 60, at: 'merged', pr: 124, proactive: true,
     summary: '提示停留时间改为 3 秒，与其他提示一致。', replies: ['我把保存成功提示的停留时间调整到与其他提示一致。'] },
-  { id: 'readme', title: 'README 的本地启动步骤过期', who: 3, ask: '@agent-bot the README setup steps still mention yarn', minutes: 30 * 60, at: 'merged', pr: 122,
+  { id: 'readme', project: 'api', title: 'README 的本地启动步骤过期', who: 3, ask: '@agent-bot the README setup steps still mention yarn', minutes: 30 * 60, at: 'merged', pr: 122,
     replies: ['Updating the README setup steps.'] },
-  { id: 'empty', title: '空列表时显示「undefined 条记录」', who: 0, ask: '@Superagent 列表为空的时候显示 undefined 条记录', minutes: 50 * 60, at: 'completed',
+  { id: 'empty', project: 'web', title: '空列表时显示「undefined 条记录」', who: 0, ask: '@Superagent 列表为空的时候显示 undefined 条记录', minutes: 50 * 60, at: 'completed',
     summary: '已在 #120 中被修复，确认后无需改动。', replies: ['我来看看空列表的计数显示。'] },
-  { id: 'dark', title: '图表在暗色模式下网格线太亮', who: 1, ask: '@Superagent 暗色模式图表网格线太刺眼', minutes: 75 * 60, at: 'merged', pr: 118,
+  { id: 'dark', project: 'web', title: '图表在暗色模式下网格线太亮', who: 1, ask: '@Superagent 暗色模式图表网格线太刺眼', minutes: 75 * 60, at: 'merged', pr: 118,
     followups: ['顺便把坐标轴也调暗一点'], replies: ['我来调暗暗色模式下的图表网格线。'] },
-  { id: 'cache', title: '商品详情页重复请求库存接口', who: 2, ask: '@agent-bot product page calls the stock API twice', minutes: 100 * 60, at: 'closed', pr: 116,
+  { id: 'cache', project: 'api', title: '商品详情页重复请求库存接口', who: 2, ask: '@agent-bot product page calls the stock API twice', minutes: 100 * 60, at: 'closed', pr: 116,
     summary: '与 @chenhao 的重构 PR 重复，已关闭本 PR。', replies: ['Looking at the duplicate stock request.'] },
-  { id: 'copyright', title: '页脚版权年份写死为 2025', who: 4, ask: '页脚还是 2025', minutes: 8 * 24 * 60, at: 'merged', pr: 112, proactive: true,
+  { id: 'copyright', project: 'web', title: '页脚版权年份写死为 2025', who: 4, ask: '页脚还是 2025', minutes: 8 * 24 * 60, at: 'merged', pr: 112, proactive: true,
     replies: ['我把页脚年份改为自动取当前年份。'] },
 ]
 
@@ -108,6 +126,7 @@ function seed(store: Store, spec: Spec, now: number) {
   switch (spec.at) {
     case 'working': report('progress', 3, '正在定位样式变量'); break
     case 'ready': case 'blocked': case 'waiting': report(spec.at, spec.minutes * 0.85); break
+    case 'failed': report('failed', spec.minutes * 0.1); break
     case 'question': report('progress', 8, '已复现：超过 2MB 时请求被网关拒绝，前端没有处理 413'); break
     case 'merged': case 'closed': case 'completed': case 'dropped': case 'stopped':
       report(spec.at === 'merged' || spec.at === 'closed' ? 'ready' : spec.at === 'completed' ? 'ready' : 'dropped', closedAt * 0.8)
@@ -121,18 +140,48 @@ function seed(store: Store, spec: Spec, now: number) {
   })
   const ticket: Ticket = { id: spec.id, title: spec.title, decisionId: decision.id, mandate, channels: [origin.channel!], assignments: [assignment],
     inputs, undelivered: [], createdAt: at(0.3), updatedAt: at(end ? closedAt : spec.minutes * 0.9), origin: { triggerId: origin.id, triggerIds: [origin.id] },
-    execution: { name: spec.id, directory: `/srv/dsh-superagent/work/${spec.id}`, assignment: spec.ask },
+    ...spec.project ? { project: spec.project } : {},
+    execution: { name: spec.id, directory: `/srv/dsh-superagent/work/${spec.project ? `${spec.project}/` : ''}${spec.id}`, assignment: spec.ask },
     ...spec.pr ? { follows: [{ thread: `github:${spec.pr}`, own: true, ...end && (spec.at === 'merged' || spec.at === 'closed')
       ? { closed: { at: end.at, outcome: spec.at } } : {} }] } : {},
     ...spec.question ? { attention: { id: `${spec.id}-q`, question: spec.question, triggerId: origin.id } } : {},
     ...end ? { ended: end } : {} }
   store.tickets.save(ticket)
+  if (spec.project && !end) checkout(store, spec, ticket, at(1))
   spec.replies?.forEach((text, index) => {
     const message = { id: `${spec.id}-m${index}`, channel: origin.channel!, text, kind: index ? 'reply' as const : 'acknowledgement' as const,
       ticketId: spec.id }
     store.receipts.add(message); store.receipts.settle(message, 'sent')
     patchReceipt(store, message.id, at(index ? (end ? closedAt * 0.8 : spec.minutes * 0.86) : 0.5))
   })
+}
+let block = 0
+/** The checkout state a ticket of a project has: ready with its own ports, or where `spec` says it is. */
+function checkout(store: Store, spec: Spec, ticket: Ticket, at: string) {
+  const names = { web: ['web'], api: ['http', 'grpc'], mobile: [] as string[] }[spec.project!]
+  const ports = Object.fromEntries(names.map((name, index) => [name, 20000 + block * 10 + index]))
+  block++
+  const state: WorkspaceState = { state: 'ready', at, directory: ticket.execution!.directory, base: 'origin/main', ...spec.workspace,
+    ...names.length ? { ports } : {} }
+  store.set(KV.projects.workspace(ticket.id), state)
+}
+/** What the team taught the agent: a change a worker proposes, a hint a person stated, and what people decided before. */
+function memory(store: Store, now: number) {
+  const hint = trigger('demo-hint', PEOPLE[1]!, '这个其实是后台的问题，订单服务那边返回的数据不对', ago(18, now), 'oc_team:om_hint')
+  store.triggers.save(hint)
+  const said = trigger('demo-said', PEOPLE[0]!, '设置页和个人主页都是前端 Web 的', ago(3 * 24 * 60, now), 'oc_team:om_said')
+  store.triggers.save(said)
+  const entries: ProjectMemory[] = [
+    { id: 'mem-sandbox', project: 'api', kind: 'workspace', text: '支付回调测试需要沙箱密钥，它在 .env.sandbox 里；复制后本地连跑 20 次都通过。',
+      change: { copy: ['.env.sandbox'], verify: 'make check-sandbox' }, from: { ticketId: 'flaky' }, at: ago(26, now), state: 'proposed' },
+    { id: 'mem-backend', project: 'api', kind: 'hint', text: '前端研发群里说的「后台」指订单服务', from: { actor: { source: 'feishu', id: 'ou_lina' }, triggerId: hint.id },
+      at: ago(17, now), state: 'proposed' },
+    { id: 'mem-settings', project: 'web', kind: 'hint', text: '「设置页」「个人主页」都属于前端 Web', from: { actor: { source: 'feishu', id: 'ou_zhangwei' }, triggerId: said.id },
+      at: ago(3 * 24 * 60, now), state: 'confirmed', decidedAt: ago(3 * 24 * 60 - 30, now) },
+    { id: 'mem-install', project: 'web', kind: 'workspace', text: '离线安装失败时改用联网安装', change: { bootstrap: ['pnpm install'] }, from: { ticketId: 'dark' },
+      at: ago(5 * 24 * 60, now), state: 'rejected', decidedAt: ago(5 * 24 * 60 - 60, now) },
+  ]
+  store.set(KV.projects.memory, entries)
 }
 /** Places a receipt's times where the demo story puts them, since the Store stamps the time it records them. */
 function patchReceipt(store: Store, id: string, at: string) {
@@ -183,8 +232,10 @@ function withdrawals(store: Store, now: number) {
 
 export function seedDemo(store: Store, now = Date.now()) {
   store.saveSettings(SETTINGS)
+  store.set(KV.sources.labels('feishu'), { oc_team: '前端研发群' })
   for (const spec of SPECS) seed(store, spec, now)
   withdrawals(store, now)
+  memory(store, now)
   for (const [index, minutes] of [12, 45, 130, 260, 600, 900, 1300].entries()) noise(store, index, ago(minutes, now))
   // Proactive candidates the agent would have accepted in observe mode.
   for (const [index, minutes] of [90, 400, 2000].entries()) store.decisions.save({ id: `would-${index}`, evalId: `would-eval-${index}`,
@@ -195,7 +246,7 @@ export function seedDemo(store: Store, now = Date.now()) {
 const NEW_WORK = [
   { who: 3, title: '仪表盘加载时闪烁骨架屏', ask: '@agent-bot the dashboard flashes the skeleton twice on load' },
   { who: 1, title: '通知中心「全部已读」按钮无效', ask: '@Superagent 通知中心的全部已读点了没反应' },
-  { who: 4, title: '移动端底部导航遮挡输入框', ask: '@Superagent 手机上底部导航会挡住评论输入框' },
+  { who: 4, title: '移动端底部导航遮挡输入框', ask: '@Superagent 手机上底部导航会挡住评论输入框', project: 'mobile' as const },
   { who: 0, title: '图片懒加载在 Safari 中失效', ask: '@Superagent Safari 里图片一直不加载' },
 ]
 /**
@@ -228,6 +279,8 @@ export function simulate(store: Store, step: number) {
       const ticket = open.find(item => item.assignments.at(-1)?.state === 'pending')
       if (!ticket) break
       ticket.assignments.at(-1)!.state = 'running'; ticket.assignments.at(-1)!.startedAt = now
+      const checkout = store.get(KV.projects.workspace(ticket.id))
+      if (checkout && checkout.state !== 'ready') store.set(KV.projects.workspace(ticket.id), { ...checkout, state: 'ready', at: now, step: undefined })
       report(ticket, 'progress', '正在阅读相关代码')
       reply(ticket, `好的，我来处理「${ticket.title}」。`, 'acknowledgement'); save(ticket); break
     }
@@ -257,7 +310,8 @@ export function simulate(store: Store, step: number) {
     }
     case 4: {
       const next = NEW_WORK[Math.floor(step / 5) % NEW_WORK.length]!
-      const spec: Spec = { id: `new-${step}`, title: next.title, who: next.who, ask: next.ask, minutes: 0, at: 'queued' }
+      const spec: Spec = { id: `new-${step}`, title: next.title, who: next.who, ask: next.ask, minutes: 0, at: 'queued',
+        project: 'project' in next ? next.project : next.who === 3 ? 'api' : 'web' }
       seed(store, spec, Date.now())
     }
   }

@@ -13,6 +13,8 @@ export interface EngineOptions {
   executor: Executor
   outbox: Outbox
   prepareTicket?: (ticket: Ticket, outcome: Extract<AssessmentOutcome, { kind: 'accept' }>) => Ticket
+  /** Names a ticket's execution directory in the project it was moved to (see `Tickets.retarget`). */
+  relocateTicket?: (ticket: Ticket) => Ticket
   now?: () => string
   emit?: (event: DomainEvent) => void
 }

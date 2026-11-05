@@ -336,6 +336,7 @@ Some generic modules still refer directly to GitHub or Feishu:
 | `src/app/retry-health.ts` | `RetryHealth`: which Sessions wait on a model budget retry, for the `models` health entry |
 | `src/app/role-models.ts` | Resolves the Eval and Executor models, and seeds a new Session with its role's model |
 | `src/app/assessment.ts` | The MasterAssessor, the assessment schema and the window `orchestrator_eval` answers |
+| `src/app/projects.ts` | Projects: `resolveProject`, which project an accept works on (named, bound or the only one), `ticketDirectory`, the ports a ticket holds (`allocatePorts`), the `WorkspaceState` of its checkout, and `ProjectMemories`, the hints and workspace changes people confirm |
 | `src/app/execution-environment.ts` | The execution environment: its variables, a Ticket's values, the directory root and the lines of the prompt section, which `src/app/prompts.ts` fills into its template |
 | `src/app/source-context.ts` | `sourceContextOf`: each Source kind's `SourceContext` |
 | `src/app/links.ts` | `sourceLink`, the page of a Trigger's message, and `candidateCard` |
@@ -353,8 +354,10 @@ Some generic modules still refer directly to GitHub or Feishu:
 | `src/app/views/sources.ts` | The Source status: each Source instance's state, its last day's counts, and what it filtered and dropped in that day |
 | `src/app/views/settings.ts` | The settings page's view: each block with its revision, each Source's settings with its kind's form, and the execution environment |
 | `src/app/views/overview.ts` | The overview: Tickets that need a person, problems, the last day's flow and the Executor's load |
+| `src/app/views/projects.ts` | The projects page, derived from settings, stored Tickets and workspace states: each project with its bindings by name, its open work by stage, its latest checkouts and its confirmed hints, and the project memory with who taught it (`projectsView`) |
 | `src/app/views/team.ts` | The team views, derived from stored records only: the board of Tickets by column (`board`), the team page with the agent's profile, the people who asked for work, the activity and the window's figures (`team`), the engine map's counts of what passed each stage of the chain and what is in it now (`engine`), and a Ticket's journey, its steps and its message flow by lane (`journey`) |
 | `src/executor/dsh.ts` | The DshExecutor, `WorkerSlots`, `ticketExecution`, `inputMessage` and `mandateInstructions` |
+| `src/executor/workspace.ts` | `prepareWorkspace`: a ticket's checkout of its project, a git worktree of the project's checkout or its own prepare command, then copies, copy-on-write clones, bootstrap commands and the check, each rerunning safely |
 | `src/executor/background.ts` | A worker's background work in DeepSeek Harness, the shell jobs its Session owns (`ctx.jobs`) and its subagents (`ctx.subagents`): `runningJobs`, `untilQuiet`, `killJobs`, `collectJobs`, `stopSubagents`, `stopBackground`, `until`, and `cancelled`, the workers whose turn a stop of their subagents cancelled |
 | `src/infra/commands.ts` | `Commands`, the CLI transport: `run`; `api` and `pages`, limited to the configured repository and validated; `lark` as the bot; `git`. `CliError` carries the code a command's output reports, such as a GitHub HTTP status, and a command that prints nothing fails with how it ended, never with its arguments; `validItems` skips and counts the malformed items of a list |
 | `src/infra/environment.ts` | The agent's process environment: command shims, the git configuration and credential helper, `runAsWorker`, and the checks of the environment and of a Ticket's directory |
@@ -385,6 +388,7 @@ Some generic modules still refer directly to GitHub or Feishu:
 | `src/client/overview.tsx` | The overview |
 | `src/client/board.tsx` | The board, the panel's home page: the engine map, then a card per Ticket in the column of its stage with its journey as a line, filterable by requester and title, with what stops all work above it |
 | `src/client/engine.tsx` | The engine map: the chain from Sources through Eval, Tickets and the Executor to delivery and back, its lines as thick as what passed them and carrying moving dots, its nodes explaining themselves and opening their pages; folded, one line |
+| `src/client/projects.tsx` | The projects page: the project memory waiting for a person, each project's checkout, bindings, work by stage, checkout recipe and latest checkouts, and the editor that saves the `projects` settings block |
 | `src/client/team.tsx` | The team page: the agent's profile, the window's figures with the daily chart, the members and the activity |
 | `src/client/team-kit.tsx` | What the team pages share: avatars, figure tiles, the page intro, and durations and shares in words |
 | `src/client/journey.tsx` | A Ticket's journey on its page: the stepper of its steps and the flow of its messages, as lanes or as a conversation |
@@ -437,6 +441,7 @@ Some generic modules still refer directly to GitHub or Feishu:
 | `tests/runtime-concurrency.spec.ts` | Work that overlaps: Triggers during a pass, Tickets that change during deliveries and launches |
 | `tests/http.spec.ts` | The same-origin and loopback checks, the status of each kind of failure, the body limit, path parameters and queries |
 | `tests/settings.spec.ts` | Settings saves that race a model or account check, a Policy sync that a save outran, and the refusals of the pause, a sync and a block |
+| `tests/projects.spec.ts` | Projects: which project a request is for (named, bound or the only one), ports per ticket, workspace changes, project memory proposed and decided by people, the main Session's Projects part, and making a ticket's checkout step by step |
 | `tests/team.spec.ts` | The team views on a Store: the board's columns and cards, the team's members, figures and activity, the engine map's counts, and a Ticket's journey and message flow |
 | `tests/views.spec.ts` | What the management views derive from the Store, such as the Thread a dropped message belongs to |
 | `tests/timeline.spec.ts` | A Thread's pages and a Trigger's neighbours by time and then id, with every received Trigger's time in one form |
@@ -449,6 +454,7 @@ Some generic modules still refer directly to GitHub or Feishu:
 | `tests/service-script.spec.ts` | `scripts/dsh-superagent` against fake `ps`, `tmux` and `dsh` |
 | `tests/client.spec.tsx`, `tests/navigation.spec.ts`, `tests/controls.spec.tsx` | The client plugin's registration and polling, Session navigation and route memory, the local controls, and the panel's imports, which have no cycle |
 | `tests/panel-overview.spec.tsx`, `panel-source.spec.tsx`, `panel-trigger.spec.tsx`, `panel-eval.spec.tsx`, `panel-execution.spec.tsx` | Each page of the panel, against a fake management API answered by route |
+| `tests/panel-projects.spec.tsx` | The projects page: the memory waiting for a person and confirming it, a project's checkout, bindings, stages, recipe and failed checkouts, the editor, the empty page, a card's project and checkout on the board, and moving a ticket to another project |
 | `tests/panel-team.spec.tsx` | The board as the home page with the engine map, its cards' journey lines, its filters and the problem that stops all work above it, and the team page in both languages |
 | `tests/panel-settings.spec.tsx`, `panel-prompts.spec.tsx`, `panel-deployment.spec.tsx`, `panel-panel.spec.tsx` | The settings groups, drafts and history, the prompts, the Deployment page, and the panel's search, glossary and route memory |
 | `tests/draft.spec.ts`, `tests/prompt-config.spec.ts`, `tests/markdown.spec.ts`, `tests/marks.spec.ts` | Draft states, merges and the save bar's line; the prompt configuration by section and the line diff; the Markdown subset and its links; the mark of every state the views classify |
@@ -500,7 +506,7 @@ Nothing deletes old records yet, so these grow without bound: the `trigger`, `di
 
 ### Main Session tools
 
-The main Session has 14 application tools:
+The main Session has 15 application tools:
 
 | Purpose | Tools |
 | --- | --- |
@@ -509,9 +515,10 @@ The main Session has 14 application tools:
 | Re-evaluate | `orchestrator_trigger_requeue` |
 | Assess proactive work | `orchestrator_eval`, `orchestrator_eval_read`, `orchestrator_eval_decide` |
 | Communicate and unsubscribe | `orchestrator_reply`, `orchestrator_thread_unsubscribe` |
+| Teach a project | `orchestrator_project_hint` |
 | Configure | `orchestrator_settings_save`, `orchestrator_policy_sync`, `orchestrator_prompts_save` |
 
-`orchestrator_route` accepts 1–20 decisions in order. Each accept, attach, stop or ignore runs as a separate Engine command. It also permits ignoring an inferred candidate directly from its card. `orchestrator_ticket_note` sends a fact as context, not authority.
+`orchestrator_route` accepts 1–20 decisions in order. Each accept, attach, stop or ignore runs as a separate Engine command. It also permits ignoring an inferred candidate directly from its card. With projects, an accept names its `project`, which `resolveProject` checks before the Engine decides: an id there is none of refuses the item, and so does a request nothing settles. `orchestrator_ticket_note` sends a fact as context, not authority. `orchestrator_project_hint` records what an allowed sender's message states about a project for a person to confirm.
 
 Settings saves select `policy`, `eval`, `executor`, `pause`, or `source`; the last also names its Source id. A prompt save with `preview: true` composes text without saving.
 
@@ -527,7 +534,7 @@ Existing main Sessions on `standard` also need explicit timeouts for foreground 
 
 ### Executor tools
 
-Each Executor has six application tools:
+Each Executor has seven application tools:
 
 | Tool | Purpose |
 | --- | --- |
@@ -537,6 +544,7 @@ Each Executor has six application tools:
 | `orchestrator_thread_unrelated` | Drop an unrelated attached Thread, hand back its owned follow-ups and tell the main Session why |
 | `orchestrator_thread_follow` | Subscribe to a related Thread for context and tell the main Session |
 | `orchestrator_trigger_handback` | Hand back a message once, with a reason carried by its candidate |
+| `orchestrator_workspace_propose` | Propose a change to how its project's checkouts are made ready, for a person to confirm |
 
 A hand-back returns `queued: false` if another Ticket still owns the message, or this Ticket never owned it. For example, a bot message went to Eval independently.
 

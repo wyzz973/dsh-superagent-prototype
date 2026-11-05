@@ -11,8 +11,9 @@ function trigger(id: string, overrides: Partial<Trigger> = {}): Trigger {
 interface Hooks {
   emit?: (event: { type: string; data: Record<string, unknown> }) => void
   prepareTicket?: EngineOptions['prepareTicket']
+  relocateTicket?: EngineOptions['relocateTicket']
 }
-function harness(policyOverrides: Partial<Policy> = {}, { emit, prepareTicket }: Hooks = {}) {
+function harness(policyOverrides: Partial<Policy> = {}, { emit, prepareTicket, relocateTicket }: Hooks = {}) {
   const repo = new MemoryRepositories()
   const outbox: OutboundMessage[] = []
   const withdrawn: string[] = []
@@ -44,7 +45,7 @@ function harness(policyOverrides: Partial<Policy> = {}, { emit, prepareTicket }:
     retractTo: channel => { retractedTo.push(channel) },
   }
   const engine = new Engine({ repo, scope, policy: () => policy, assessor, executor, outbox: queued,
-    ...emit ? { emit } : {}, ...prepareTicket ? { prepareTicket } : {}, now: () => new Date(Date.UTC(2026, 8, 23, 0, 0, clock)).toISOString() })
+    ...emit ? { emit } : {}, ...prepareTicket ? { prepareTicket } : {}, ...relocateTicket ? { relocateTicket } : {}, now: () => new Date(Date.UTC(2026, 8, 23, 0, 0, clock)).toISOString() })
   /** Simulate the executor starting queued assignments (unless `launch` is false) and delivering pending ticket inputs. */
   function settle({ launch = true } = {}) {
     for (;;) {
@@ -1144,6 +1145,26 @@ describe('ticket commands', () => {
     expect(retried.assignments).toEqual([expect.objectContaining({ state: 'ended', endedReason: 'retried' }), expect.objectContaining({ state: 'pending' })])
     expect(h.executor.stop).toHaveBeenCalledOnce()
     expect(h.executor.start).toHaveBeenLastCalledWith(expect.objectContaining({ id: ticketId }), retried.assignments[1])
+  })
+
+  it('moves a ticket to another project before its work goes on there: queued, or after a failed report, never while its worker works', () => {
+    const relocateTicket = vi.fn((ticket: Ticket) => ({ ...ticket, execution: { name: 'fix', directory: `/work/${ticket.project ?? ''}/fix`, assignment: '' } }))
+    const h = harness({}, { relocateTicket })
+    h.engine.receive(trigger('1')); h.pump()
+    const ticketId = h.decide(h.requests.at(-1)!, { kind: 'accept', title: 'Fix', scope: 'small', reason: 'requested', project: 'web' }).ticketId!
+    expect(h.repo.tickets.get(ticketId)!.project).toBe('web')
+    // A queued launch reads the ticket when it runs, so it starts in the new directory without a new Assignment.
+    expect(h.engine.retargetTicket(ticketId, 'api')).toMatchObject({ project: 'api', execution: { directory: '/work/api/fix' } })
+    expect(h.executor.start).toHaveBeenCalledOnce()
+    h.settle()
+    expect(() => h.engine.retargetTicket(ticketId, 'web')).toThrow(new UserError('workStarted'))
+    h.engine.report(ticketId, { state: 'failed', summary: 'checkout failed' })
+    const moved = h.engine.retargetTicket(ticketId, 'web')
+    expect(moved).toMatchObject({ project: 'web', execution: { directory: '/work/web/fix' } })
+    expect(moved.assignments.map(item => item.endedReason ?? item.state)).toEqual(['retried', 'pending'])
+    expect(h.executor.start).toHaveBeenCalledTimes(2)
+    h.engine.stopTicket(ticketId)
+    expect(() => h.engine.retargetTicket(ticketId, 'api')).toThrow(new UserError('ticketEnded'))
   })
 })
 describe('failed deliveries', () => {

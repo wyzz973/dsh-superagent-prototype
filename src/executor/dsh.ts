@@ -3,7 +3,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { mkdir, rmdir, stat } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { dirname } from 'node:path'
 import { key, latestAssignment, latestReport, liveTicket, runningAssignment, threadKey, waitsForPerson } from '../core/index.ts'
 import type { AssessmentOutcome, Assignment, EngineForExecutor, Execution, Executor, Mandate, PolicyEffect, Ticket, TicketInput, Trigger }
   from '../core/index.ts'
@@ -12,12 +12,15 @@ import { runAsWorker, verifyDirectory } from '../infra/environment.ts'
 import type { Settings } from '../policy.ts'
 import type { Store } from '../app/store.ts'
 import { Later, type Effects } from '../app/effects.ts'
-import { executionRoot, type Variable } from '../app/execution-environment.ts'
+import type { Variable } from '../app/execution-environment.ts'
+import { allocatePorts, projectOf, ticketDirectory, workspaceState, type WorkspaceState } from '../app/projects.ts'
+import { KV } from '../kv.ts'
 import type { Sessions } from '../app/sessions.ts'
 import { WorktreeNameSchema } from '../app/assessment.ts'
 import { resultRelay } from '../app/notices.ts'
 import type { HealthEntry } from '../infra/health.ts'
 import { cancelled, collectJob, killJobs, runningJobs, stopBackground, stopSubagents, until, untilQuiet } from './background.ts'
+import { WorkspaceFailed, prepareWorkspace } from './workspace.ts'
 
 const now = (): string => new Date().toISOString()
 /** Returns the worker session ID (`worker-<ticketId>`) for a ticket. */
@@ -62,7 +65,7 @@ export interface ExecutorHost {
   /** Where the Executor reports what happened to Assignments and Inputs. */
   readonly engine: Pick<EngineForExecutor, 'assignmentStarted' | 'inputsDelivered' | 'inputsRead' | 'turnEnded' | 'deliveryFailed' | 'report'
     | 'assignmentInterrupted'>
-  readonly store: Pick<Store, 'tickets' | 'triggers' | 'set' | 'settings' | 'atomic' | 'afterCommit'>
+  readonly store: Pick<Store, 'tickets' | 'triggers' | 'get' | 'set' | 'settings' | 'atomic' | 'afterCommit'>
   /** Durable effect queue through which launches and input deliveries run. */
   readonly effects: Pick<Effects, 'enqueue' | 'handle'>
   /** The `worker` health entry, which reports whether background worker event handling failed. */
@@ -107,7 +110,7 @@ export function ticketExecution(ticket: Ticket, outcome: Extract<AssessmentOutco
   const assignment = ticket.mandate.strength === 'inferred' && ruleIds
     ? `Proactively accepted under ${ruleIds.join(', ')}. Scope: ${outcome.scope}.${precedence}${note}`
     : note.trim()
-  return { name, directory: join(executionRoot(settings, stateDir), name), assignment }
+  return { name, directory: ticketDirectory(settings, stateDir, ticket.project, name), assignment }
 }
 /** Character limits for inline assignment and trigger text in worker messages; longer text is read via its resource. */
 const ASSIGNMENT_CHARS = 1500, TRIGGER_CHARS = 600
@@ -242,9 +245,65 @@ export class DshExecutor implements Executor {
     // Failed input deliveries are recorded on the ticket itself rather than reported through the `delivery` effect health entry (`quiet: true`).
     host.effects.handle('delivery', payload => this.deliverQueued(payload.ticketId), { limit: () => host.paused() ? 0 : 4, quiet: true })
   }
-  /** Populates a newly accepted ticket's `execution` attributes (worktree name, workspace directory, and assignment text). */
+  /** Populates a newly accepted ticket's `execution` attributes (worktree name, workspace directory in its project, and assignment text). */
   prepare(ticket: Ticket, outcome: Extract<AssessmentOutcome, { kind: 'accept' }>): Ticket {
     return { ...ticket, execution: ticketExecution(ticket, outcome, this.host.store.settings(), this.host.machine.stateDir) }
+  }
+  /** Names the directory of a ticket moved to another project, keeping its short name; its checkout there is made at its next launch. */
+  relocate(ticket: Ticket): Ticket {
+    if (!ticket.execution) return ticket
+    const directory = ticketDirectory(this.host.store.settings(), this.host.machine.stateDir, ticket.project, ticket.execution.name)
+    return { ...ticket, execution: { ...ticket.execution, directory } }
+  }
+  /**
+   * Whether a ticket's directory is ready for its worker: it exists, and for a ticket of a project, its checkout was made ready
+   * since it was last made or moved (a failed step is tried again at the next launch).
+   */
+  private async prepared(ticket: Ticket): Promise<boolean> {
+    const directory = ticket.execution?.directory ?? ''
+    if (!await stat(directory).then(() => true, () => false)) return false
+    if (!ticket.project) return true
+    const state = workspaceState(this.host.store, ticket.id)
+    return state?.state === 'ready' && state.directory === directory
+  }
+  private recordWorkspace(ticketId: string, state: WorkspaceState): void { this.host.store.set(KV.projects.workspace(ticketId), state) }
+  /**
+   * Makes the checkout of a ticket of a project ready (see `prepareWorkspace`), with ports of its own that no other open
+   * ticket holds, recording each step so the panel shows where it is and, on failure, which step failed and why.
+   * @throws PrepareFailed when the project is gone or a step fails.
+   */
+  private async prepareProject(ticket: Ticket, signal: AbortSignal): Promise<void> {
+    const settings = this.host.store.settings()
+    const project = projectOf(settings, ticket.project)
+    const directory = ticket.execution?.directory ?? ''
+    const at = now()
+    if (!project) {
+      this.recordWorkspace(ticket.id, { state: 'failed', at, directory, step: 'prepare', output: `Project ${ticket.project ?? ''} is no longer configured` })
+      throw new PrepareFailed(`Project ${ticket.project ?? ''} is no longer configured; move the ticket to a project there is`)
+    }
+    const previous = workspaceState(this.host.store, ticket.id)
+    const taken = this.host.store.tickets.open().filter(item => item.id !== ticket.id)
+      .flatMap(item => { const ports = workspaceState(this.host.store, item.id)?.ports; return ports ? [ports] : [] })
+    const ports = previous?.ports && project.workspace.ports.every(name => previous.ports![name] !== undefined)
+      ? previous.ports : allocatePorts(project.workspace.ports, taken)
+    const record = (state: Omit<WorkspaceState, 'directory' | 'ports' | 'at'> & { at?: string }) =>
+      this.recordWorkspace(ticket.id, { at: now(), ...state, directory, ...Object.keys(ports).length ? { ports } : {} })
+    record({ state: 'preparing', at })
+    const env = Object.fromEntries(this.host.environment(ticket).map(variable => [variable.key, variable.value]))
+    const run = (argv: string[], cwd: string, extra?: Record<string, string>) =>
+      runAsWorker(this.host.context.subprocess, argv, cwd, signal, { ...env, ...extra })
+    try {
+      await mkdir(dirname(directory), { recursive: true })
+      const { base } = await prepareWorkspace({ project, directory, name: ticket.execution?.name ?? ticket.id, env, run,
+        onStep: step => record({ state: 'preparing', step, ...previous?.base ? { base: previous.base } : {} }) })
+      await verifyDirectory(directory, this.host.context.subprocess, this.host.lifetime)
+      record({ state: 'ready', ...base ?? previous?.base ? { base: base ?? previous!.base! } : {} })
+    } catch (error) {
+      const step = error instanceof WorkspaceFailed ? error.step : 'prepare'
+      const output = error instanceof WorkspaceFailed ? error.output : error instanceof Error ? error.message : String(error)
+      record({ state: 'failed', step, output: output.slice(-4000) })
+      throw new PrepareFailed(`Preparing the checkout of project ${project.id} failed at its ${step} step: ${output.slice(-2000)}`)
+    }
   }
   /**
    * Runs the configured `executor.prepare` command for a new ticket workspace in its parent directory with the ticket's
@@ -254,11 +313,12 @@ export class DshExecutor implements Executor {
    */
   private async prepareDirectory(ticket: Ticket): Promise<void> {
     const directory = ticket.execution?.directory ?? ''
+    // Enforce a timeout so a hung prepare command (such as on a credential prompt) fails the ticket instead of holding a worker slot indefinitely.
+    const signal = AbortSignal.any([this.host.lifetime, AbortSignal.timeout(PREPARE_TIMEOUT_MS)])
+    if (ticket.project) return this.prepareProject(ticket, signal)
     await mkdir(dirname(directory), { recursive: true })
     const command = this.host.store.settings().executor.prepare.trim()
     const env = Object.fromEntries(this.host.environment(ticket).map(variable => [variable.key, variable.value]))
-    // Enforce a timeout so a hung prepare command (such as on a credential prompt) fails the ticket instead of holding a worker slot indefinitely.
-    const signal = AbortSignal.any([this.host.lifetime, AbortSignal.timeout(PREPARE_TIMEOUT_MS)])
     if (command) await runAsWorker(this.host.context.subprocess, ['sh', '-c', command], dirname(directory), signal, env)
       .catch(async (error: unknown) => {
         // Remove an empty directory left by a failed prepare command so a later retry does not treat it as already prepared.
@@ -439,8 +499,9 @@ export class DshExecutor implements Executor {
     const source = sourceTrigger(this.host, ticket)
     const workspace = ticket.execution?.directory ?? ''
     if (!current()) return
-    // Prepare the workspace directory once; an existing directory counts as already prepared, including worktrees created before `prepare` commands existed.
-    if (!await stat(workspace).then(() => true, () => false)) {
+    // Prepare the workspace directory once; an existing directory counts as already prepared, including worktrees created before
+    // `prepare` commands existed, except a project's checkout, which is ready only once its steps passed.
+    if (!await this.prepared(ticket)) {
       await this.prepareDirectory(ticket)
       if (!current()) return
     }

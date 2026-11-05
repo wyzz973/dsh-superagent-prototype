@@ -154,6 +154,8 @@ Setup must succeed before polling or work starts. Overview lists missing require
    ```
 
    List personal CLIs, such as one signed in to your own account, as blocked commands.
+
+   With several repositories, or to start each Ticket in a working environment, add **Projects** instead, on the Projects page. A project names the checkout you develop in, the conversations whose requests are its own, and the steps that make a Ticket's worktree of it work: the ignored files to copy, the directories to clone, the bootstrap commands, the check and the ports each Ticket gets ([003 Execution](003-execution.md)). A Ticket of a project uses its steps in place of the prepare command.
 4. **Prompts.** Set the team sections: the GitHub disclosure line, review bots, the commit author and the auto-merge condition.
 
 ### Management API
@@ -169,7 +171,7 @@ Agents may rely on these routes and fields. The other routes in `src/app/api.ts`
 | Request | Answer |
 | --- | --- |
 | `GET state` | What every page reads: `setup`, with `problem` and `feishuProblem`, each `null` or a setup problem with `place`, `code`, `values` and `detail`, and `accounts` once setup resolved them; `health`, an entry per part, below, with `state` (`starting`, `ready`, `paused` or `error`), `detail` and `at`; `load`, the Executor Sessions `running`, the Tickets `queued` and `maxWorkers`; `paused`; and `masterId` |
-| `GET settings` | `blocks`: `policy`, `eval` and `executor`, each with its `value` and its `revision`; `sources`: the Source instances, each with `id`, `kind`, `installed`, its block's `value`, `{"enabled": …, "config": {…}}`, and `revision`, its kind's form, and its setup `problem` when it has one; `policyVersion`; and `environment`, the execution environment's `root` and `variables` |
+| `GET settings` | `blocks`: `policy`, `eval`, `executor` and `projects`, each with its `value` and its `revision`; `sources`: the Source instances, each with `id`, `kind`, `installed`, its block's `value`, `{"enabled": …, "config": {…}}`, and `revision`, its kind's form, and its setup `problem` when it has one; `policyVersion`; and `environment`, the execution environment's `root` and `variables` |
 | `GET sources` | Each Source's status: `state` (`missing`, `off`, `error`, `setup`, `starting`, `paused` or `ready`), the `health` of its parts, its setup `problem`, the last day's `stats`, the Triggers it `filtered` in that day, and the messages it `dropped` in that day, newest drop first, each with its `channel`, `preview`, `ticket` (`id` and `title`) when it was for one, its `thread` when the store has it, and `dropped.at` and `dropped.reason`, `channelGone` or `channelIgnored` |
 | `PUT settings/<block>` with `{"value": …, "revision": n}` | Saves one block: `saved`, the block's new `revision`, `policy_changed` and `restarting`. `value` is the whole block, as `GET settings` holds it; a missing key takes its default |
 | `POST executor/pause` with `{"paused": true}` or `false` | Pauses or resumes processing: `paused` |
@@ -177,6 +179,8 @@ Agents may rely on these routes and fields. The other routes in `src/app/api.ts`
 | `POST policy-sync/<source id>` | Syncs that Source's allowed list now: `policy`, the Source's part as saved |
 | `GET prompts`, `PUT prompts` with `{"config", "baseRevision"}` | Reads the prompt configuration: `current`, with its `revision` and `config`, `defaults`, `sections`, the team sections in the order Sessions read them, `skillName`, the pattern of a team skill's name, `builtin`, the names a team skill cannot take, and `skillPrefix`, which Sessions load a skill's name under. Or saves it: the new `revision` |
 | `POST tickets/<id>/retry`, `POST tickets/<id>/stop` | Retries or stops a Ticket, as the panel does |
+| `POST tickets/<id>/project` with `{"project": "<id>"}` | Moves an open Ticket to another project before its work goes on there: `moved: true` |
+| `GET projects`, `POST projects/memory/<id>/confirm`, `POST projects/memory/<id>/reject` | The projects with their work and checkouts and the project memory; or confirms or rejects one memory entry, a confirmed workspace change saved to its project: `memory` |
 
 Health entries are grouped by responsibility:
 
@@ -203,6 +207,7 @@ The blocks:
 - `policy`: `{"rules": […], "sources": {"github": {"allowed": [{"id": "<login>"}], "bots": [{"id": "dependabot[bot]"}]}, "feishu": {"allowed": [{"id": "ou_…", "name": "…"}], "syncChat": "oc_…", "admission": {"oc_…": {"unlistedAddressed": "explicit"}}}}}`. `bots` lists the bots whose messages may become inferred candidates. An `admission` row is keyed by chat id, `other` or `direct` for Feishu, and by `issues`, `pulls`, `comments` or `ci` for GitHub; an unset cell takes its default (see [002 Authorization](002-authorization.md)).
 - `eval`: `mode`, `timeoutSeconds` and `model`.
 - `executor`: `model`, `maxWorkers`, `directory`, `prepare` and `blockedCommands`. The processing pause is a setting of its own, `paused`, which `POST executor/pause` sets.
+- `projects`: `{"projects": [{"id": "orders", "name": "订单服务", "description": "…", "aliases": ["订单"], "bindings": ["feishu:oc_…"], "checkout": "/home/me/src/orders", "base": "origin/main", "prepare": "", "workspace": {"copy": [".env.local"], "clone": ["node_modules"], "bootstrap": ["pnpm install --offline"], "verify": "pnpm test:smoke", "ports": ["web"]}}]}`. Only the panel and this API save it, as it names commands that run on this machine.
 
 Changing a repository or CLI runs the corresponding setup check first. A failed check returns 400 with details in `setup`. A successful account change, or any save while setup is pending, returns `restarting: true`. The API is temporarily unavailable while the application restarts.
 

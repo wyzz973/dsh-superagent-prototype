@@ -11,6 +11,7 @@ import { admissionContext } from '../sources/admission-context.ts'
 import { readRepositoryPath } from '../sources/github-read.ts'
 import type { TriggerContext } from '../sources/kind.ts'
 import { relatedTickets } from './cards.ts'
+import { resolveProject } from './projects.ts'
 import { textPage } from './context.ts'
 import { AcknowledgementSchema } from './tools/tool.ts'
 import type { Effects } from './effects.ts'
@@ -26,6 +27,7 @@ export const AssessmentSchema = z.object({
   direction: AdmissionDirectionSchema.describe('Required for every decision.'),
   title: z.string().min(1).max(160),
   worktree_name: WorktreeNameSchema.optional(),
+  project: z.string().max(32).nullish().describe('For acceptance with projects: the project id, as the Projects section lists them; omit when its thread is bound to one.'),
   scope: z.string().max(1500),
   intent_evidence: z.string().trim().min(1).max(700).nullish().describe('For acceptance: the quotes that establish the three facts.'),
   acknowledgement: AcknowledgementSchema.nullish().describe('For acceptance: one sentence in the source language, posted as a reply to the trigger; omit only when a matched rule asks for silence.'),
@@ -274,6 +276,11 @@ export class MasterAssessor implements Assessor {
     signal?.throwIfAborted()
     let outcome: AssessmentOutcome = assessmentOutcome(result, this.host.settings(), candidate.strength)
     if (outcome.kind === 'accept' && outcome.acknowledgement) outcome = { ...outcome, acknowledgement: checkedImText(outcome.acknowledgement) }
+    // An accept works on a project the host has, checked before it is decided (see `resolveProject`).
+    if (outcome.kind === 'accept') {
+      const project = resolveProject(this.host.settings(), candidate.triggers.find(item => item.id === triggerId), result.project)
+      if (project) outcome = { ...outcome, project }
+    }
     const decision = this.host.engine.decide(triggerId, { ...outcome, evalId: candidate.evalId })
     return { state: decision.kind, ...(decision.ticketId ? { ticket_id: decision.ticketId } : {}), reason: reasonText(decision.reason) }
   }

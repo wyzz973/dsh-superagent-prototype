@@ -52,6 +52,22 @@ Before the first Assignment, if the Ticket directory does not exist, the prepare
 
 A failed command fails the Ticket and records its output. A retry or a person's message on one of the Ticket's Threads tries preparation again. A typical command uses `git worktree` to create a checkout. A pull request belongs to the Ticket when its branch's last path segment matches the Ticket's short name.
 
+### A checkout of a project
+
+A Ticket of a project gets its directory at `<root>/<project>/<name>` and a checkout of the project instead of the prepare command. The checkout is made in steps, each recorded so the panel shows where it is:
+
+1. **Worktree.** A `git worktree` of the project's checkout on branch `superagent/<name>`, from the project's base, else `origin/HEAD` after a fetch, else what the checkout has out. A project's own prepare command, when it has one, makes the directory instead, run in its parent.
+2. **Copy.** The files and directories git ignores that the project needs, such as `.env.local`, copied from the checkout; the entries of the checkout's `.worktreeinclude` are copied too. A copy never overwrites what the worktree has.
+3. **Clone.** Large directories, such as `node_modules`, cloned copy-on-write where the file system can (APFS, a Linux reflink), else copied.
+4. **Bootstrap.** The project's commands, in order, in the worktree.
+5. **Check.** The command that proves the checkout works.
+
+Every command runs as the worker, with the execution variables and the Ticket's ports. A Ticket's checkout is ready only once every step passed; a step that fails holds the Ticket as failed with the step and its output, which the board shows as an environment problem, and a retry runs the steps again, keeping the worktree and what was copied. A Ticket moved to another project is made ready again in its new directory.
+
+Each Ticket of a project that names ports gets a block of its own, from 20000 in blocks of ten, which no other open Ticket holds, so its servers never collide with another Ticket's or a person's.
+
+A worker that finds what its checkout needed can propose a change to the project's steps (`orchestrator_workspace_propose`); a person confirms it on the projects page, and later Tickets start with it.
+
 ### Concurrency
 
 A Ticket holds a worker slot from the start of a launch, including preparation, or from the delivery that wakes its idle Executor. It also holds the slot throughout an active turn.
@@ -67,6 +83,8 @@ The prepare command and Executor instructions receive the same execution variabl
 | Variable | Registered by | Value |
 | --- | --- | --- |
 | `DSH_SUPERAGENT_DIR`, `DSH_SUPERAGENT_NAME`, `DSH_SUPERAGENT_TICKET` | Executor | The Ticket's directory, short name and id |
+| `DSH_SUPERAGENT_PROJECT`, `DSH_SUPERAGENT_CHECKOUT` | Executor | The Ticket's project and the project's checkout, of which its directory is a worktree; empty without a project |
+| `DSH_SUPERAGENT_PORT_<NAME>` | Executor | The Ticket's own port for each port its project names, such as `DSH_SUPERAGENT_PORT_WEB` |
 | `DSH_SUPERAGENT_BLOCKED_COMMANDS` | Executor | Commands the Executor may not run |
 | `DSH_SUPERAGENT_GITHUB_REPOSITORY` | GitHub | The repository the Source watches, `owner/name` |
 | `DSH_SUPERAGENT_GITHUB_ACCOUNT`, `DSH_SUPERAGENT_GITHUB_COMMIT_EMAIL` | GitHub | The agent account and its commit email |

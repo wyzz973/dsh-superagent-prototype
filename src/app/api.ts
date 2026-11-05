@@ -8,6 +8,8 @@ import type { SettingsView } from './views/settings.ts'
 import type { SourceStatusView } from './views/sources.ts'
 import type { DecisionListView, SearchView, ThreadDetailView, ThreadListView } from './views/threads.ts'
 import type { BoardView, EngineView, TeamView } from './views/team.ts'
+import type { ProjectMemory } from './projects.ts'
+import type { ProjectsView } from './views/projects.ts'
 import type { TicketListView } from './views/tickets.ts'
 
 export const TICKET_FILTERS = ['open', 'person', 'working', 'idle', 'ended'] as const
@@ -38,6 +40,10 @@ export interface Api {
   'GET tickets/:id': { response: TicketPageView }
   'POST tickets/:id/retry': { response: { retried: true } }
   'POST tickets/:id/stop': { response: { stopped: true } }
+  'POST tickets/:id/project': { body: { project: string }; response: { moved: true } }
+  'GET projects': { response: ProjectsView }
+  'POST projects/memory/:id/confirm': { response: { memory: ProjectMemory } }
+  'POST projects/memory/:id/reject': { response: { memory: ProjectMemory } }
   'POST executor/pause': { body: { paused: boolean }; response: { paused: boolean } }
   'PUT settings/:block': { body: { value: unknown; revision: number }; response: { revision: number; restarting: boolean } }
   'GET policy/history': { response: HistoryView }

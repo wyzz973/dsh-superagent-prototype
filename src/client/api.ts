@@ -142,4 +142,7 @@ export type BoardView = ApiResponse<'GET board'>
 export type BoardCard = BoardView['columns'][number]['cards'][number]
 export type TeamView = ApiResponse<'GET team'>
 export type TeamActivity = TeamView['activity'][number]
+export type ProjectsView = ApiResponse<'GET projects'>
+export type ProjectCard = ProjectsView['projects'][number]
+export type MemoryEntry = ProjectsView['memory'][number]
 export type EngineView = ApiResponse<'GET engine'>

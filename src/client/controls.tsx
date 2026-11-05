@@ -50,6 +50,8 @@ const ICON_PATHS = {
   chart: 'M4 20h16M7 16v-5M12 16V7M17 16v-8',
   activity: 'M3 12h4l3-7 4 14 3-7h4',
   check: 'M5 12.5l4.5 4.5L19 7.5',
+  folder: 'M3.5 6.5a1.5 1.5 0 0 1 1.5-1.5h4.2l2 2.2H19a1.5 1.5 0 0 1 1.5 1.5v8.8A1.5 1.5 0 0 1 19 19H5a1.5 1.5 0 0 1-1.5-1.5z',
+  bulb: 'M9.5 17.5h5M10.5 20.5h3M12 3.5a5.5 5.5 0 0 0-3.2 10c.6.4.9 1.1.9 1.8v.2h4.6v-.2c0-.7.3-1.4.9-1.8A5.5 5.5 0 0 0 12 3.5z',
 } as const satisfies Record<string, string>
 export type IconName = keyof typeof ICON_PATHS
 export function Icon({ name, size = 16 }: { name: IconName; size?: number }) {

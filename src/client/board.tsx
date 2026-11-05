@@ -8,6 +8,7 @@ import { usePanel, usePanelData } from './provider.tsx'
 import { setupPage } from './route.ts'
 import { ThreadChip } from './rows.tsx'
 import { EngineMap } from './engine.tsx'
+import { projectHue } from './projects.tsx'
 import { Avatar, PageIntro, duration } from './team-kit.tsx'
 import { actorName, readableMarkers, valueLabel } from './text.ts'
 import { CheckSetupButton, LoadState, SetupMessage, StageMark, When } from './widgets.tsx'
@@ -46,7 +47,9 @@ function Card({ card }: { card: BoardCard }) {
   const { t, navigate } = usePanel()
   const mark = ticketMark(t, card)
   const withdrawn = card.retraction && !card.retraction.revisedBy ? card.retraction : undefined
+  const failed = card.workspace?.state === 'failed' ? card.workspace : undefined
   const note = withdrawn ? { text: t(withdrawn.settled ? 'board.withdrawn.settled' : 'board.withdrawn.grace'), error: false }
+    : failed ? { text: t('board.workspaceFailedNote', { step: t(`projects.step.${failed.step ?? 'prepare'}`) }), error: true }
     : card.note ? { text: readableMarkers(t, card.note.text), error: card.note.error }
     : card.report ? { text: readableMarkers(t, card.report.preview), error: false } : undefined
   return <li className="dt-board-card" data-col={card.column} data-state={withdrawn && card.state === 'open' ? 'warning' : card.column === 'person' ? mark.dot
@@ -56,9 +59,13 @@ function Card({ card }: { card: BoardCard }) {
       <StageMark state={mark.dot} icon={mark.icon} label={mark.label} />
       {card.strength === 'inferred' && <Tag tone="info" title={t('board.proactiveHint')}>{t('board.proactive')}</Tag>}
       {withdrawn && <Tag tone="warning" title={t('board.withdrawnHint')}>{t('board.withdrawnTag')}</Tag>}
+      {failed && <Tag tone="danger" title={failed.output}>{t('board.workspaceFailed')}</Tag>}
+      {card.workspace?.state === 'preparing' && <Tag tone="info">{t('board.workspacePreparing')}</Tag>}
       {withdrawn && !withdrawn.settled && card.state === 'open' && <Countdown until={withdrawn.until} />}
       <span className="dt-board-card-time"><When at={card.updatedAt} /></span>
     </div>
+    {card.project && <span className="dt-board-project" title={card.project.id}>
+      <span className="dt-board-project-dot" style={{ ['--dt-hue' as string]: projectHue(card.project.id) }} />{card.project.name}</span>}
     <button type="button" className="dt-board-card-title" onClick={() => navigate({ page: 'execution', id: card.id })}>{card.title}</button>
     {note && <p className={note.error ? 'dt-board-card-note dt-error-text' : 'dt-board-card-note'} title={note.text}>{note.text}</p>}
     {card.threads.length > 0 && <div className="dt-board-card-chips">{card.threads.map(thread => <ThreadChip key={thread.key}
@@ -115,12 +122,14 @@ export function BoardPage() {
   const { t, call } = usePanel()
   const { data, error } = usePoll(() => call('GET board'), [])
   const [who, setWho] = useState<string>()
+  const [project, setProject] = useState<string>()
   const [query, setQuery] = useState('')
   const columns = useRef<HTMLDivElement>(null)
   useFlip(columns)
   if (!data) return <LoadState error={error} loading />
   const text = query.trim().toLowerCase()
-  const shown = (card: BoardCard) => (!who || card.requester.key === who) && (!text || card.title.toLowerCase().includes(text))
+  const shown = (card: BoardCard) => (!who || card.requester.key === who) && (!project || card.project?.id === project)
+    && (!text || card.title.toLowerCase().includes(text))
   return <div className="dt-board-page">
     {error && <LoadState error={error} loading={false} />}
     <PageIntro icon="board" title={t('tab.board')} text={t('board.subtitle')} />
@@ -134,6 +143,13 @@ export function BoardPage() {
           <Avatar actor={person} id={person.key} t={t} size="sm" />{actorName(t, person)}
         </button>)}
       </div>
+      {data.projects.length > 1 && <div className="dt-board-people" role="group" aria-label={t('tab.projects')}>
+        <button type="button" className="dt-person-pill" aria-pressed={!project} onClick={() => setProject(undefined)}>{t('board.allProjects')}</button>
+        {data.projects.map(item => <button key={item.id} type="button" className="dt-person-pill" aria-pressed={project === item.id}
+          onClick={() => setProject(project === item.id ? undefined : item.id)}>
+          <span className="dt-board-project-dot" style={{ ['--dt-hue' as string]: projectHue(item.id) }} />{item.name}
+        </button>)}
+      </div>}
       <div className="dt-search"><Input type="search" icon={<Icon name="filter" />} value={query} placeholder={t('board.filter')}
         aria-label={t('board.filter')} onChange={event => setQuery(event.target.value)} /></div>
     </div>

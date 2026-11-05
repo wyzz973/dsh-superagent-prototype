@@ -4,6 +4,7 @@ import { liveTicket, type EngineForExecutor, type Ticket } from '../../core/inde
 import { IM_WORDS } from '../../infra/text.ts'
 import { claimPull, readPull } from '../../sources/github-pull.ts'
 import type { SourceContext } from '../../sources/host.ts'
+import { WorkspaceChangeSchema, type ProjectMemories } from '../projects.ts'
 import { readResource, type ResourceHost } from '../resources.ts'
 import type { Store } from '../store.ts'
 import { reportRelay, threadFollowedNotice } from '../notices.ts'
@@ -15,6 +16,8 @@ export interface ExecutorToolsHost {
   readonly store: Pick<Store, 'tickets' | 'replyStatus' | 'atomic'>
   readonly sessions: Pick<Sessions, 'relay' | 'notify'>
   readonly resources: ResourceHost
+  /** Project memory, where a worker proposes a change to its project's workspace for a person to confirm. */
+  readonly memory: Pick<ProjectMemories, 'workspace'>
   /** GitHub Source context whose pull-request rules govern claiming a reported PR. */
   readonly github: SourceContext
   sendReplies(): Promise<void>
@@ -25,6 +28,15 @@ export function executorTools(host: ExecutorToolsHost, ticket: Ticket): Tool[] {
   return [
     readTool('Read one page of a resource of this ticket that the resource parameter lists. Follow next_offset, and next_resource where a page names one.',
       true, (resource, offset, limit, signal) => readResource(host.resources, resource, offset, limit, ticketId, signal)),
+    tool({
+      name: 'orchestrator_workspace_propose',
+      description: 'Propose, for a person to confirm, a change you verified to how this project\'s checkouts are made ready: an ignored file to copy, a directory to clone, a bootstrap command, a port or the check. Later tickets start with it.',
+      schema: z.object({ change: WorkspaceChangeSchema, reason: z.string().trim().min(1).max(300).describe('What failed without it, and how you verified it.') }).strict(),
+      execute: async args => {
+        const entry = host.memory.workspace(host.store.tickets.get(ticketId) ?? ticket, args.change, args.reason)
+        return { id: entry.id, state: entry.state }
+      },
+    }),
     tool({
       name: 'orchestrator_ack',
       description: 'Acknowledge one original human request before substantial work, as the replies section says; it posts as a reply to that message.',

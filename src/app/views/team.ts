@@ -53,7 +53,10 @@ export function board(host: ViewHost, days = 7, now = Date.now()) {
   const tickets = view.store.tickets.list().filter(ticket => liveTicket(ticket) || ticket.ended!.at >= from).sort(newestFirst)
   const cards = tickets.map(ticket => card(view, ticket, sent))
   const people = new Map(cards.map(item => [item.requester.key, item.requester]))
-  return { days, columns: BOARD_COLUMNS.map(id => ({ id, cards: cards.filter(item => item.column === id) })), people: [...people.values()] }
+  // The projects the board's cards work on, in the order the settings list them, for its project filter.
+  const projects = view.store.settings().projects.projects.filter(project => cards.some(item => item.project?.id === project.id))
+    .map(project => ({ id: project.id, name: project.name }))
+  return { days, columns: BOARD_COLUMNS.map(id => ({ id, cards: cards.filter(item => item.column === id) })), people: [...people.values()], projects }
 }
 export type BoardView = ReturnType<typeof board>
 

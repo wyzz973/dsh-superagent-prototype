@@ -25,13 +25,14 @@ Overrides use these keys:
 | Working instructions | `runtime/subscriptions`, `runtime/replies`, `runtime/dispatch`, `runtime/work`, `runtime/admission` |
 | Handoff instructions | `runtime/handoff/orchestrator`, `runtime/handoff/worker` |
 | Source skills | `skill/feishu`, `skill/github` |
-| Generated sections | `runtime/environment`, `runtime/policy`, `runtime/policy/none` |
+| Generated sections | `runtime/environment`, `runtime/policy`, `runtime/policy/none`, `runtime/projects` |
 
 The generated sections are editable templates. They must retain these placeholders:
 
 - `runtime/environment`: `{variables}`, filled with execution environment lines.
 - `runtime/policy`: `{version}`, `{mode}` and `{rules}`, with one line per enabled rule.
 - `runtime/policy/none`: `{version}` and `{mode}`, used when no rule is enabled.
+- `runtime/projects`: `{projects}`, one line per project with its id, name, description, other names, bindings and confirmed hints; it follows the Policy section only when there are projects.
 
 Editing a part changes the instructions the model receives. It does not change the gate, Mandates, tool checks or account wrappers, which remain enforced by code.
 

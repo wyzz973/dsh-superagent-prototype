@@ -8,6 +8,7 @@ import { IM_WORDS, NOTE_WORDS, wordCount } from '../../infra/text.ts'
 import { AssessmentSchema, EvalReadSchema, WorktreeNameSchema, type MasterAssessor } from '../assessment.ts'
 import { ticketCard } from '../cards.ts'
 import { PromptConfigSchema, savePrompts, type Prompts } from '../prompts.ts'
+import { resolveProject, type ProjectMemories } from '../projects.ts'
 import { readResource, type MainResourceHost, type ResourceHost } from '../resources.ts'
 import type { Sessions } from '../sessions.ts'
 import type { Settings } from '../settings.ts'
@@ -25,6 +26,8 @@ export interface MainToolsHost {
   readonly sessions: Pick<Sessions, 'status' | 'notify' | 'delivery' | 'modelRetry'>
   readonly settings: Pick<Settings, 'view' | 'block' | 'save' | 'pause' | 'sync'>
   readonly assessor: Pick<MasterAssessor, 'context' | 'read' | 'decide'>
+  /** Project memory, where the main Session records the hints people state for a person to confirm. */
+  readonly memory: Pick<ProjectMemories, 'hint'>
   readonly resources: ResourceHost
   /** Schedules a pass to carry out work queued by an Engine command (such as an Eval or ticket resume). */
   requestPass(): void
@@ -52,6 +55,7 @@ const RouteItemSchema = z.object({
   worktree_name: z.string().nullish().describe(`accept: ${WorktreeNameSchema.description ?? ''}`),
   acknowledgement: z.string().nullish().describe(`accept: one brief sentence of at most ${IM_WORDS} words naming the concrete change and intended result in the source language. It is posted as a reply to the original source on acceptance, so do not quote the source; quote an earlier proposal briefly only when the trigger merely confirms it and the sentence does not already state it. No generic I will handle it.`),
   note: z.string().nullish().describe(`accept and attach: ${RoutingNoteSchema.description ?? ''}`),
+  project: z.string().nullish().describe('accept: the id of the project the request is for, as the Projects section lists them; omit only when there are no projects or its thread is bound to one.'),
   reason: z.string().nullish().describe('ignore and stop: why, at most 500 characters; an ignore needs it.'),
 }).strict()
 type RouteItem = z.infer<typeof RouteItemSchema>
@@ -64,6 +68,7 @@ const FIELDS: Record<Field, { check: z.ZodType; reads: readonly Kind[]; needs: r
   worktree_name: { check: WorktreeNameSchema, reads: ['accept'], needs: ['accept'] },
   acknowledgement: { check: AcknowledgementSchema, reads: ['accept'], needs: ['accept'] },
   note: { check: RoutingNoteSchema, reads: ['accept', 'attach'], needs: [] },
+  project: { check: z.string().max(32), reads: ['accept'], needs: [] },
   reason: { check: z.string().max(500), reads: ['ignore', 'stop'], needs: ['ignore'] },
 }
 /** Why an item cannot run: a field its kind needs is missing, or one it reads breaks its limit. */
@@ -94,8 +99,10 @@ function route(host: MainToolsHost, item: RouteItem, decided: ReadonlyMap<string
   switch (item.kind) {
     case 'accept': {
       const before = host.store.triggers.disposition(item.trigger_id)?.decisionId
+      // The project is checked against the projects there are before anything is decided, so a wrong one refuses the item alone.
+      const project = resolveProject(host.store.settings(), host.store.triggers.get(item.trigger_id), item.project)
       const decision = host.engine.decide(item.trigger_id, { kind: 'accept', title: item.title!, scope: item.title!, reason: { code: 'explicitRouted' },
-        acknowledgement: item.acknowledgement!, name: item.worktree_name!, ...note })
+        acknowledgement: item.acknowledgement!, name: item.worktree_name!, ...note, ...project ? { project } : {} })
       // A Decision that created no ticket is the item's refusal; one that existed before keeps what it was accepted with.
       if (decision.kind !== 'accept' || !decision.ticketId) return { refused: `Ticket was not created: ${reasonText(decision.reason)}` }
       if (decision.id === before) {
@@ -235,6 +242,21 @@ export function mainTools(host: MainToolsHost, agent: Agent): Tool[] {
           ...(args.ticket_id ? { ticketId: args.ticket_id } : {}), ...(args.human_action ? { question: args.human_action } : {}) })
         await host.sendReplies()
         return { status: host.store.replyStatus(reply.id) ?? reply.status }
+      },
+    }),
+    tool({
+      name: 'orchestrator_project_hint',
+      description: 'Record what an allowed sender\'s message states about a project, such as which project a name or a chat means, for a person to confirm in the panel; a confirmed hint reaches you with the project. Only what a person stated, never your own inference; it grants no authority.',
+      schema: z.object({
+        project: z.string().describe('The project id, as the Projects section lists them.'),
+        trigger_id: z.string().describe('The allowed sender\'s message that states it.'),
+        text: z.string().trim().min(1).refine(text => wordCount(text) <= NOTE_WORDS, `At most ${NOTE_WORDS} words`)
+          .describe('The hint as one short sentence, such as: in the ops chat, “the backend” means this project.'),
+        replaces: z.string().optional().describe('The id of an earlier hint of this project that this one corrects.'),
+      }).strict(),
+      execute: async args => {
+        const entry = host.memory.hint(args.project, args.text, args.trigger_id, args.replaces)
+        return { id: entry.id, state: entry.state }
       },
     }),
     tool({
