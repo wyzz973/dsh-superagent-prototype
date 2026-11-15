@@ -449,52 +449,6 @@ html.mode-flow .task { white-space: normal; }
 html.mode-flow .case { grid-template-columns: minmax(0, 1fr); gap: 1.4rem; }
 html.mode-flow .stat b { font-size: 1.9rem; }
 
-/* ── 9 试点 ───────────────────────────────────────── */
-.pilot { display: grid; gap: 2.6rem; }
-.road { position: relative; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2rem; }
-.road-rail { position: absolute; left: 0.7rem; right: 0; top: 0.62rem; height: 0.16rem; background: var(--line-strong); }
-.road-fill { display: block; height: 100%; width: 0; background: var(--flow); transition: width 0.6s var(--ease); }
-.slide[data-step="1"] .road-fill { width: 25.6%; } .slide[data-step="2"] .road-fill { width: 51.2%; } .slide[data-step="3"] .road-fill { width: 76.8%; }
-.road-step { position: relative; display: grid; gap: 0.5rem; text-align: left; align-content: start; padding-top: 2.6rem; opacity: 0.45; transition: opacity 0.4s; }
-.road-step.is-active, .road-step.is-past { opacity: 1; }
-.road-step i { position: absolute; left: 0; top: 0; width: 1.4rem; height: 1.4rem; border-radius: 50%; background: var(--bg); border: 0.16rem solid var(--line-strong); transition: background 0.35s, border-color 0.35s, box-shadow 0.35s; }
-.road-step.is-past i, .road-step.is-active i { background: var(--flow); border-color: var(--flow); }
-.road-step.is-active i { box-shadow: 0 0 0 0.45rem var(--flow-soft); }
-.road-step small { font-size: var(--fs-small); color: var(--ink-3); font-variant-numeric: tabular-nums; }
-.road-step b { font-size: 1.9rem; line-height: 1.25; }
-.road-step span { font-size: var(--fs-body); color: var(--ink-2); line-height: 1.5; }
-.pilot-notes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.6rem; }
-.pilot-notes li { background: var(--bg-soft); border-radius: 1rem; padding: 1.2rem 1.5rem; display: grid; gap: 0.3rem; font-size: var(--fs-small); color: var(--ink-2); }
-.pilot-notes b { font-size: var(--fs-body); color: var(--ink); }
-.pilot-honest { font-size: var(--fs-small); color: var(--ink-3); }
-html.mode-flow .road { grid-template-columns: minmax(0, 1fr); gap: 1.2rem; }
-html.mode-flow .road-rail { display: none; }
-html.mode-flow .road-step { opacity: 1; padding-top: 0; padding-left: 2.2rem; }
-html.mode-flow .road-step i { top: 0.2rem; background: var(--flow); border-color: var(--flow); }
-html.mode-flow .road-step b { font-size: 1.2rem; }
-html.mode-flow .pilot-notes { grid-template-columns: minmax(0, 1fr); gap: 0.8rem; }
-
-/* ── 10 问答 ──────────────────────────────────────── */
-.qa { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 4rem; align-items: start; }
-.qa-list { display: grid; gap: 0.15rem; }
-.qa-q { text-align: left; padding: 0.72rem 1.1rem; border-radius: 0.8rem; font-size: var(--fs-body); color: var(--ink-2); transition: background 0.25s, color 0.25s; }
-.qa-q:hover { background: var(--bg-soft); }
-.qa-q.is-active { background: var(--flow-soft); color: var(--ink); font-weight: 650; }
-.qa-panels { display: grid; padding-top: 0.6rem; }
-.qa-a { grid-area: 1 / 1; display: grid; gap: 1.5rem; align-content: start; opacity: 0; transform: translateY(0.8rem); transition: opacity 0.35s, transform 0.5s var(--ease); pointer-events: none; }
-.qa-a.is-active { opacity: 1; transform: none; pointer-events: auto; }
-.qa-a h3 { display: none; }
-.qa-a p { font-size: 1.95rem; line-height: 1.5; font-weight: 560; }
-.qa-a ul { display: grid; gap: 0.7rem; color: var(--ink-2); padding-top: 1.5rem; border-top: 1px solid var(--line-strong); }
-.qa-a li { padding-left: 1.3em; position: relative; }
-.qa-a li::before { content: ""; position: absolute; left: 0.2em; top: 0.62em; width: 0.42em; height: 0.42em; border-radius: 50%; background: var(--ink-3); }
-html.mode-flow .qa { grid-template-columns: minmax(0, 1fr); }
-html.mode-flow .qa-list { display: none; }
-html.mode-flow .qa-a { grid-area: auto; opacity: 1; transform: none; pointer-events: auto; padding: 1.1rem 0; border-top: 1px solid var(--line); gap: 0.7rem; }
-html.mode-flow .qa-a h3 { display: block; font-size: 1.1rem; }
-html.mode-flow .qa-a p { font-size: 1rem; font-weight: 400; }
-html.mode-flow .qa-a ul { padding-top: 0.6rem; font-size: var(--fs-small); }
-
 
 @media print {
   @page { size: 338.67mm 190.5mm; margin: 0; }
@@ -853,7 +807,7 @@ html.mode-flow .qa-a ul { padding-top: 0.6rem; font-size: var(--fs-small); }
   <aside class="notes"><ul>
     <li>按 → 依次看 Multica、Grok Bot、dots、Claude Tag、Super-agent，也可以直接点图上的点。</li>
     <li>关键区别是在谁的机器上跑。Grok Bot、dots、Claude Tag 都是境外云；Multica 和 Super-agent 可以放在自己手里。</li>
-    <li>Multica 更成熟，试点时可以一起评估。Super-agent 多做的是授权和主动性的管理。</li>
+    <li>Multica 更成熟，值得一起评估。Super-agent 多做的是授权和主动性的管理。</li>
   </ul></aside>
 </section>
 
@@ -930,97 +884,6 @@ html.mode-flow .qa-a ul { padding-top: 0.6rem; font-size: var(--fs-small); }
   </ul></aside>
 </section>
 
-<!-- 9 建议 -->
-<section class="slide" id="pilot" data-steps="4" data-step="0" data-title="建议：四周试点">
-  <h2 data-in>建议：四周，小范围，随时能停</h2>
-  <div class="body">
-    <div class="pilot" data-in style="--i:1">
-      <div class="road">
-        <div class="road-rail"><i class="road-fill"></i></div>
-        <button type="button" class="road-step is-active" data-set-step="0"><i></i><small>第 1 周</small><b>只观察</b><span>一个非核心仓库，两三个人。看它本来会接什么。</span></button>
-        <button type="button" class="road-step" data-set-step="1"><i></i><small>第 2 到 3 周</small><b>点名才干</b><span>同事 @ 它处理小任务。人评审，人合并。</span></button>
-        <button type="button" class="road-step" data-set-step="2"><i></i><small>第 4 周</small><b>放开两条规则</b><span>文案和样式的小修，允许它主动做。</span></button>
-        <button type="button" class="road-step" data-set-step="3"><i></i><small>四周之后</small><b>用数据决定</b><span>扩大、维持，或者停掉。</span></button>
-      </div>
-      <ul class="pilot-notes">
-        <li><b>看这几个数</b>交付时长、一次交付率、每件事打扰人几次</li>
-        <li><b>需要的投入</b>一台常开的机器、模型额度、每周半天维护</li>
-        <li><b>红线</b>出现越权或泄露，立即暂停</li>
-      </ul>
-      <p class="pilot-honest">它还是研究原型，安全边界靠约定，所以只在很小、可信的范围里用。</p>
-    </div>
-  </div>
-  <aside class="notes"><ul>
-    <li>这是今天唯一的请求：批准一个四周、范围很小、随时能停的试点。</li>
-    <li>四周后带着真实数据再汇报一次，那时再谈要不要扩大。周数和人数是建议值。</li>
-  </ul></aside>
-</section>
-
-<!-- 10 问答 -->
-<section class="slide" id="qa" data-title="问答">
-  <h2 data-in>欢迎挑战</h2>
-  <div class="body" style="align-content: start;">
-    <div class="qa" data-in style="--i:1">
-      <div class="qa-list">
-        <button type="button" class="qa-q is-active">和 Claude Code、Cursor 有什么不同？</button>
-        <button type="button" class="qa-q">真能提效吗？有数据吗？</button>
-        <button type="button" class="qa-q">安全吗？</button>
-        <button type="button" class="qa-q">成本多少？</button>
-        <button type="button" class="qa-q">出了问题谁负责？</button>
-        <button type="button" class="qa-q">为什么不直接买成熟产品？</button>
-        <button type="button" class="qa-q">它主动干活，会不会失控？</button>
-        <button type="button" class="qa-q">失败了怎么收场？</button>
-      </div>
-      <div class="qa-panels">
-        <article class="qa-a is-active">
-          <h3>和 Claude Code、Cursor 有什么不同？</h3>
-          <p>那些是一个人用的工具，一个会话占一个人。Super Agent 是团队共用的常驻成员，它的每个执行者本身就是一个 Coding Agent。</p>
-          <ul><li>一个人只跟得住 3 到 5 个会话</li><li>会话 80% 的时间在等人</li></ul>
-        </article>
-        <article class="qa-a">
-          <h3>真能提效吗？有数据吗？</h3>
-          <p>现在没有人能给出可信的通用数字，所以我们申请的是试点，用自己的数据回答。</p>
-          <ul><li>论文实验只测了调度：完成时间中位 12.4 分钟对 20.4 分钟，token 多 2 到 4 倍</li><li>第三方小样本复测：编码通过率反而更低，4/16 对 10/16</li><li>METR 的实验：开发者实测慢了 19%，自己却觉得快了</li></ul>
-        </article>
-        <article class="qa-a">
-          <h3>安全吗？</h3>
-          <p>有风险，业界也没有彻底的解法。办法是把影响压到最小：专用账号、最小权限、只提 PR、人来合并、随时能停。</p>
-          <ul><li>原型文档自述：执行者的封装不是安全边界</li><li>论文原话：安全解决不好，就只能在很小且可信的范围里工作</li></ul>
-        </article>
-        <article class="qa-a">
-          <h3>成本多少？</h3>
-          <p>主要是模型调用费，外加一台常开的机器和每周半天的维护。用国产模型会便宜很多。</p>
-          <ul><li>参考值：Claude Code 文档给出的企业均值，每人每活跃日约 13 美元</li><li>两层架构更费 token，约 2 到 4 倍</li></ul>
-        </article>
-        <article class="qa-a">
-          <h3>出了问题谁负责？</h3>
-          <p>合并它的人负责，和评审同事的 PR 一样。它只提 PR，不自己合并。</p>
-          <ul><li>默认不开自动合并</li><li>它在 GitHub 上的每条消息都标明是自动化 Agent</li></ul>
-        </article>
-        <article class="qa-a">
-          <h3>为什么不直接买成熟产品？</h3>
-          <p>dots、Grok Bot、Claude Tag 都跑在境外云上，国内团队难用，代码也要出去。能自己部署的里面，Multica 更成熟，试点时一起评估。</p>
-          <ul><li>原型是 MIT 协议，自带飞书和 GitHub 入口，可以换国产模型</li></ul>
-        </article>
-        <article class="qa-a">
-          <h3>它主动干活，会不会失控？</h3>
-          <p>默认只观察、不动手。要主动做事，必须命中团队写下的规则。</p>
-          <ul><li>聊天消息默认一句话，干活时不汇报进度</li><li>面板可以一键暂停，单张工单可以叫停</li></ul>
-        </article>
-        <article class="qa-a">
-          <h3>失败了怎么收场？</h3>
-          <p>按一下暂停就停了，仓库里只留下一些已评审过的 PR。四周后用数据决定去留。</p>
-          <ul><li>每一步都有继续的条件，不满足就不往下走</li></ul>
-        </article>
-      </div>
-    </div>
-  </div>
-  <aside class="notes"><ul>
-    <li>点左边的问题。先念大字，再按需展开下面的依据。</li>
-    <li>不知道的就说不知道，并说明试点会回答它。数字的出处按底栏的「来源」。</li>
-  </ul></aside>
-</section>
-
 </main>
 
 <div class="bar" id="bar">
@@ -1031,20 +894,18 @@ html.mode-flow .qa-a ul { padding-top: 0.6rem; font-size: var(--fs-small); }
     <button type="button" data-act="sources" title="来源（R）">来源</button>
     <button type="button" data-act="theme" title="明暗主题（T）">主题</button>
     <button type="button" data-act="full" title="全屏（F）">全屏</button>
-    <span class="count" id="count">01 / 10</span>
+    <span class="count" id="count">01 / 08</span>
   </div>
 </div>
 
 <div class="sheet" id="sources" hidden>
   <div class="sheet-head"><strong>来源</strong><button type="button" data-act="sources">关闭</button></div>
   <ol>
-    <li><b>Super-agent 的定义、3 到 5 个会话、实验数据。</b>DeepSeek Harness 团队《Super-agent 设计探索：迈向更自主的 Agent 系统》，2026-10-31。引文据转载页逐句核对。</li>
+    <li><b>Super-agent 的定义、3 到 5 个会话。</b>DeepSeek Harness 团队《Super-agent 设计探索：迈向更自主的 Agent 系统》，2026-10-31。引文据转载页逐句核对。</li>
     <li><b>架构、三档开关、默认规则。</b>开源原型 deepseek-ai/dsh-superagent-prototype 的文档 docs/000 到 008。</li>
     <li><b>80% 的时间在等人。</b>Anthropic「Employment at Anthropic」，2026-10-16，已读原文。</li>
-    <li><b>第三方复测。</b>pans1es/superagent-prototype-evaluation，非官方、小样本、单一模型。</li>
     <li><b>OpenClaw、Multica、Claude Tag。</b>各自的官方仓库与文档，已读原文。</li>
     <li><b>WorkBuddy、ChatGPT dots、Grok Bot、Gemini Spark。</b>公开报道（IT之家、TechCrunch、VentureBeat 等），没有读到厂商原文，对外引用前请再核一次。</li>
-    <li><b>开发者实测慢 19%、每人每活跃日约 13 美元。</b>METR 开发者效率实验的数据仓库；Claude Code 文档的成本页。</li>
     <li><b>案例数据。</b>本仓库 feat/projects 分支的 git 统计；截图来自 pnpm preview 的演示数据。</li>
   </ol>
   <p>各产品在定位图上的位置，以及五个阶段的划分，是我们的归纳。</p>
@@ -1321,20 +1182,8 @@ window.DECK_IMAGES = {"board":"data:image/webp;base64,UklGRhS3AQBXRUJQVlA4IAi3AQ
     if (!isDeck()) setStep(slide, 1);
   })();
 
-  // 问答：点左边的问题
-  each(document.querySelectorAll('.qa'), function (qa) {
-    var questions = Array.prototype.slice.call(qa.querySelectorAll('.qa-q'));
-    var answers = Array.prototype.slice.call(qa.querySelectorAll('.qa-a'));
-    questions.forEach(function (question, i) {
-      question.addEventListener('click', function () {
-        questions.forEach(function (q, at) { q.classList.toggle('is-active', at === i); });
-        answers.forEach(function (a, at) { a.classList.toggle('is-active', at === i); });
-      });
-    });
-  });
-
   // 打印时每页停在演示走完的样子
-  var printSteps = { evolution: 4, attention: 3, journey: 5, control: 1, compare: 4, value: 1, pilot: 3 };
+  var printSteps = { evolution: 4, attention: 3, journey: 5, control: 1, compare: 4, value: 1 };
   var before = null;
   function printState(on) {
     if (on) {
