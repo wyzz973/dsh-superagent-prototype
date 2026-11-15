@@ -216,12 +216,12 @@ html.mode-deck .slide.cover { grid-template-rows: minmax(0, 1fr); grid-template-
 .field-hint { margin-left: auto; color: var(--ink-3); font-size: var(--fs-micro); }
 html.mode-flow .slide.cover { padding-top: 3rem; }
 
-/* ── 2 演进：五步 ─────────────────────────────────── */
+/* ── 2 演进：七步，按时间先后 ─────────────────────── */
 .evo { display: grid; gap: 2.8rem; }
-.evo-track { position: relative; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); }
-.evo-rail { position: absolute; left: 10%; right: 10%; top: 0.62rem; height: 0.16rem; background: var(--line-strong); border-radius: 1rem; }
+.evo-track { position: relative; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); row-gap: 0.9rem; }
+.evo-rail { position: absolute; left: calc(100% / 14); right: calc(100% / 14); top: 0.62rem; height: 0.16rem; background: var(--line-strong); border-radius: 1rem; }
 .evo-fill { display: block; height: 100%; width: 0; background: var(--flow); border-radius: 1rem; transition: width 0.6s var(--ease); }
-.slide[data-step="1"] .evo-fill { width: 25%; } .slide[data-step="2"] .evo-fill { width: 50%; } .slide[data-step="3"] .evo-fill { width: 75%; } .slide[data-step="4"] .evo-fill { width: 100%; }
+.slide[data-step="1"] .evo-fill { width: 16.667%; } .slide[data-step="2"] .evo-fill { width: 33.333%; } .slide[data-step="3"] .evo-fill { width: 50%; } .slide[data-step="4"] .evo-fill { width: 66.667%; } .slide[data-step="5"] .evo-fill { width: 83.333%; } .slide[data-step="6"] .evo-fill { width: 100%; }
 .evo-tab { position: relative; display: grid; justify-items: center; align-content: start; gap: 0.3rem; padding: 0 0.3rem; color: var(--ink-3); text-align: center; }
 .evo-tab i { width: 1.4rem; height: 1.4rem; border-radius: 50%; background: var(--bg); border: 0.16rem solid var(--line-strong); transition: background 0.35s, border-color 0.35s, box-shadow 0.35s, transform 0.35s var(--ease); }
 .evo-tab b { font-size: var(--fs-small); font-weight: 600; margin-top: 0.4rem; transition: color 0.3s; }
@@ -229,6 +229,9 @@ html.mode-flow .slide.cover { padding-top: 3rem; }
 .evo-tab.is-past i { background: var(--flow); border-color: var(--flow); }
 .evo-tab.is-active i { background: var(--flow); border-color: var(--flow); box-shadow: 0 0 0 0.45rem var(--flow-soft); transform: scale(1.1); }
 .evo-tab.is-active b { color: var(--ink); }
+/* 后四步落在同一年：用一个括号把它们框在一起 */
+.evo-year { grid-column: 4 / -1; grid-row: 2; height: 0.6rem; margin: 0 1.4rem; border: 1px solid var(--line-strong); border-top: 0; border-radius: 0 0 0.6rem 0.6rem; display: grid; justify-items: center; align-items: end; }
+.evo-year em { font-style: normal; font-size: var(--fs-micro); line-height: 1; color: var(--ink-3); background: var(--bg); padding: 0 0.9em; transform: translateY(50%); white-space: nowrap; }
 .evo-stage { display: grid; grid-template-columns: minmax(0, 11fr) minmax(0, 10fr); gap: 4rem; align-items: center; }
 .evo-pics { position: relative; aspect-ratio: 320 / 190; background: var(--bg-soft); border-radius: 1.4rem; }
 .evo-pic { position: absolute; left: 7%; top: 7%; width: 86%; height: 86%; opacity: 0; transform: scale(0.96); transition: opacity 0.45s ease, transform 0.6s var(--ease); }
@@ -238,12 +241,18 @@ html.mode-flow .slide.cover { padding-top: 3rem; }
 .evo-text.is-on { opacity: 1; transform: none; pointer-events: auto; }
 .evo-when { font-size: var(--fs-body); color: var(--ink-3); }
 .evo-text h3 { font-size: 2.5rem; line-height: 1.3; }
+.nb { white-space: nowrap; }
 .evo-gap { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 1rem; align-items: baseline; font-size: var(--fs-lead); color: var(--ink-2); padding-top: 1.3rem; border-top: 1px solid var(--line-strong); }
 .evo-gap span { font-size: var(--fs-micro); font-weight: 650; padding: 0.15em 0.75em; border-radius: 999px; background: var(--bg-sunken); color: var(--ink-2); white-space: nowrap; }
 html.mode-flow .evo { gap: 1.6rem; }
 html.mode-flow .evo-stage { grid-template-columns: minmax(0, 1fr); gap: 1.4rem; }
 html.mode-flow .evo-text h3 { font-size: 1.4rem; }
-html.mode-flow .evo-tab b { font-size: 0.72rem; }
+html.mode-flow .evo-track { row-gap: 0.6rem; }
+html.mode-flow .evo-tab { padding: 0; }
+/* 手机上七个名字排不开：隔一个往下错一行 */
+html.mode-flow .evo-tab b { font-size: 0.68rem; line-height: 1.25; white-space: nowrap; }
+html.mode-flow .evo-tab:nth-of-type(even) b { margin-top: 1.55rem; }
+html.mode-flow .evo-year { margin: 0 0.5rem; }
 html.mode-flow .evo-tab small { display: none; }
 
 /* ── 3 瓶颈：人的注意力 ───────────────────────────── */
@@ -292,7 +301,60 @@ html.mode-flow .attn-fig { overflow-x: auto; }
 html.mode-flow .attn-fig svg { min-width: 34rem; }
 html.mode-flow .attn-status { margin-left: 0; }
 
-/* ── 4 一条消息的旅程 ─────────────────────────────── */
+/* ── 4 架构：按原文的架构总图重绘，一步讲一个模块 ──── */
+.arch { display: grid; gap: 1.5rem; }
+.arch-fig { background: var(--bg-soft); border-radius: 1.4rem; padding: 1.3rem 1.8rem 1.1rem; }
+.arch-fig svg { display: block; width: 100%; height: auto; overflow: visible; }
+.arch-fig [data-at] { transition: opacity 0.45s ease; }
+.slide:not([data-step="0"]) .arch-fig [data-at]:not(.is-on) { opacity: 0.25; }
+.node, .wire.pass { cursor: pointer; outline: none; }
+.nbox { fill: var(--bg); stroke: var(--line-strong); stroke-width: 1.5; transition: fill 0.4s, stroke 0.4s; }
+.nbox.dash { stroke-dasharray: 7 6; }
+.nt { font-size: 21px; font-weight: 650; }
+.ns { font-size: 15px; fill: var(--ink-3); transition: fill 0.4s; }
+.node.hero .nbox, .node.is-on .nbox { fill: var(--flow-soft); stroke: var(--flow); stroke-width: 2; }
+.node.hero .nt { font-size: 25px; fill: var(--flow-ink); }
+.node.hero .ns { font-size: 16px; }
+.node.hero .ns, .node.is-on .ns { fill: var(--flow-ink); }
+.node:hover .nbox, .node:focus-visible .nbox { stroke: var(--flow); }
+.ring { fill: none; stroke: var(--flow); stroke-width: 2; opacity: 0; transform-box: fill-box; transform-origin: center; pointer-events: none; }
+.slide[data-step="2"] .hero .ring, .slide[data-step="7"] .dog .ring { animation: arch-ring 2s ease-out infinite; }
+@keyframes arch-ring { from { opacity: 0.85; transform: scale(1); } to { opacity: 0; transform: scale(1.09, 1.36); } }
+.w-base { fill: none; stroke: var(--ink-3); stroke-width: 2; }
+.wire.soft .w-base { stroke-width: 1.6; opacity: 0.6; }
+.w-hot { fill: none; stroke: var(--flow); stroke-width: 2.4; opacity: 0; transition: opacity 0.35s; }
+.wire.dashed .w-base, .wire.dashed .w-hot { stroke-dasharray: 7 6; }
+.wire.pass .w-base { stroke: var(--flow); }
+.slide[data-step="5"] .wire.down .w-base { marker-end: none; }
+.wlabel { font-size: 16px; font-weight: 650; fill: var(--flow-ink); }
+.dots { fill: none; stroke: var(--flow); stroke-width: 9; stroke-linecap: round; stroke-dasharray: 0.1px var(--gap, 44px); opacity: 0; transition: opacity 0.35s; }
+.wire.is-on .w-hot, .wire.is-on .dots { opacity: 1; }
+.wire.is-on .dots { animation: arch-dots var(--dur, 1.1s) linear infinite; }
+@keyframes arch-dots { to { stroke-dashoffset: calc(-0.1px - var(--gap, 44px)); } }
+.wtrack { fill: var(--bg); opacity: 0; transition: opacity 0.3s; }
+.wfill { fill: var(--flow); opacity: 0; transform-box: fill-box; transform-origin: left center; transform: scaleX(0); }
+.slide[data-step="3"] .wtrack { opacity: 1; }
+.slide[data-step="3"] .wfill { opacity: 1; animation: work 1.8s var(--ease) infinite; }
+.credit { font-size: 13px; fill: var(--ink-3); }
+/* 进场：模块依次出现，连线随后接上 */
+html.mode-deck .slide.is-current .arch-fig .node { animation: arch-pop 0.55s var(--ease) backwards; animation-delay: calc(var(--n, 0) * 70ms + 260ms); transform-box: fill-box; transform-origin: center; }
+html.mode-deck .slide.is-current .arch-fig .wire, html.mode-deck .slide.is-current .arch-fig .credit { animation: arch-fade 0.6s ease backwards; animation-delay: 1.05s; }
+@keyframes arch-pop { from { opacity: 0; transform: scale(0.88); } }
+@keyframes arch-fade { from { opacity: 0; } }
+.arch-caps { display: grid; min-height: 3.4rem; align-items: center; }
+.arch-cap { grid-area: 1 / 1; display: flex; justify-content: center; align-items: center; gap: 1.2rem; font-size: var(--fs-lead); line-height: 1.4; opacity: 0; transform: translateY(0.6rem); transition: opacity 0.35s ease, transform 0.5s var(--ease); pointer-events: none; }
+.arch-cap.is-on { opacity: 1; transform: none; pointer-events: auto; }
+.arch-cap b { flex: none; font-size: var(--fs-small); font-weight: 650; color: var(--flow-ink); background: var(--flow-soft); padding: 0.25em 0.95em; border-radius: 999px; white-space: nowrap; }
+html.mode-flow .arch { gap: 1.2rem; }
+html.mode-flow .arch-fig { overflow-x: auto; padding: 0.8rem; }
+html.mode-flow .arch-fig svg { min-width: 46rem; }
+html.mode-flow .arch-caps { gap: 0.9rem; min-height: 0; }
+html.mode-flow .arch-cap { grid-area: auto; display: grid; justify-items: start; gap: 0.35rem; font-size: 1rem; color: var(--ink-2); opacity: 1; transform: none; pointer-events: auto; }
+html.mode-flow .arch-cap.is-on { color: var(--ink); }
+@media (prefers-reduced-motion: reduce) { .dots, .ring, .wfill { animation: none !important; } .wfill { transform: none; } }
+@media print { .ring { display: none; } }
+
+/* ── 5 一条消息的旅程 ─────────────────────────────── */
 .jr { display: grid; grid-template-columns: minmax(0, 23rem) minmax(0, 1fr); gap: 4rem; align-items: center; }
 .jr-chat { display: grid; gap: 0.9rem; align-content: start; background: var(--bg-soft); border-radius: 1.4rem; padding: 1.4rem 1.4rem 1.6rem; min-height: 26rem; }
 .jr-chat-name { font-size: var(--fs-micro); color: var(--ink-3); font-weight: 600; }
@@ -339,7 +401,7 @@ html.mode-flow .jr-nodes::before, html.mode-flow .jr-fill { top: 1.4rem; }
 html.mode-flow .jr-node span { font-size: 0.72rem; }
 html.mode-flow .jr-node b { font-size: 0.85rem; }
 
-/* ── 5 三档开关 ───────────────────────────────────── */
+/* ── 6 三档开关 ───────────────────────────────────── */
 .ctl { display: grid; gap: 1.3rem; justify-items: center; }
 .seg { position: relative; display: grid; grid-template-columns: repeat(3, 9.5rem); background: var(--bg-sunken); border-radius: 999px; padding: 0.3rem; }
 .seg button { position: relative; z-index: 1; height: 3.1rem; font-size: var(--fs-body); font-weight: 650; color: var(--ink-2); border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; gap: 0.45rem; transition: color 0.3s; }
@@ -373,7 +435,7 @@ html.mode-flow .msgs li { grid-template-columns: minmax(0, 1fr); gap: 0.6rem; pa
 html.mode-flow .res { justify-items: start; }
 html.mode-flow .chip { white-space: normal; }
 
-/* ── 6 同类对比 ───────────────────────────────────── */
+/* ── 7 同类对比 ───────────────────────────────────── */
 .cmp { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: 4rem; align-items: center; }
 .cmp svg { display: block; width: 100%; height: auto; }
 .quad-goal { fill: var(--flow-soft); }
@@ -404,7 +466,7 @@ html.mode-flow .cmp-card h3 { font-size: 1.4rem; }
 html.mode-flow .cmp-map { overflow-x: auto; }
 html.mode-flow .cmp-map svg { min-width: 34rem; }
 
-/* ── 7 分拣 ───────────────────────────────────────── */
+/* ── 8 分拣 ───────────────────────────────────────── */
 .sort { display: grid; gap: 1.6rem; }
 .sort-top { position: relative; min-height: 9rem; display: grid; align-content: center; }
 .sort-pile { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.9rem 1rem; max-width: 62rem; margin: 0 auto; }
@@ -429,7 +491,7 @@ html.mode-flow .sort-col { min-height: 0; }
 html.mode-flow .sort-btn { display: none; }
 html.mode-flow .task { white-space: normal; }
 
-/* ── 8 案例 ───────────────────────────────────────── */
+/* ── 9 案例 ───────────────────────────────────────── */
 .case { display: grid; grid-template-columns: minmax(0, 8fr) minmax(0, 3.5fr); gap: 3.4rem; align-items: center; }
 .case-view { display: grid; gap: 1rem; }
 .tabs { display: inline-flex; gap: 0.3rem; background: var(--bg-sunken); border-radius: 999px; padding: 0.3rem; justify-self: start; }
@@ -477,7 +539,43 @@ html.mode-flow .stat b { font-size: 1.9rem; }
     <marker id="ah-done" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0.6L7.4 4L0 7.4z" class="f-done"/></marker>
     <marker id="ah-ink" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0.6L7.4 4L0 7.4z" class="f-ink3"/></marker>
 
-    <!-- 五个阶段各一张示意图：人、入口、Agent、它能碰到的东西 -->
+    <!-- 七个阶段各一张示意图：人、入口、Agent、它能碰到的东西 -->
+    <symbol id="pic-chat" viewBox="0 0 320 190">
+      <rect x="12" y="20" width="132" height="132" rx="12" class="box"/>
+      <text x="26" y="43" font-size="12" class="t3">聊天窗口</text>
+      <rect x="66" y="54" width="66" height="28" rx="10" class="box-attn"/>
+      <text x="99" y="73" text-anchor="middle" font-size="12.5">怎么修？</text>
+      <rect x="24" y="92" width="100" height="46" rx="10" class="box-flow"/>
+      <text x="36" y="111" font-size="12.5">可以这样改：</text>
+      <text x="36" y="129" font-size="12" class="t2">第一步……</text>
+      <line x1="146" y1="88" x2="168" y2="88" class="ln-flow" marker-end="url(#ah-flow)"/>
+      <g class="person" transform="translate(188 74)"><circle r="8"/><path d="M-13 27a13 13 0 0 1 26 0z"/></g>
+      <line x1="206" y1="80" x2="240" y2="44" class="ln-attn" marker-end="url(#ah-attn)"/>
+      <line x1="208" y1="88" x2="240" y2="88" class="ln-attn" marker-end="url(#ah-attn)"/>
+      <line x1="206" y1="96" x2="240" y2="132" class="ln-attn" marker-end="url(#ah-attn)"/>
+      <rect x="242" y="24" width="66" height="34" rx="8" class="box"/><text x="275" y="46" text-anchor="middle" font-size="12.5">改代码</text>
+      <rect x="242" y="71" width="66" height="34" rx="8" class="box"/><text x="275" y="93" text-anchor="middle" font-size="12.5">跑测试</text>
+      <rect x="242" y="118" width="66" height="34" rx="8" class="box"/><text x="275" y="140" text-anchor="middle" font-size="12.5">发上线</text>
+      <text x="160" y="181" text-anchor="middle" font-size="12" class="t-attn">它只给答案，每一步还是人自己动手</text>
+    </symbol>
+
+    <symbol id="pic-tools" viewBox="0 0 320 190">
+      <g class="person" transform="translate(28 74)"><circle r="8"/><path d="M-13 27a13 13 0 0 1 26 0z"/></g>
+      <line x1="46" y1="88" x2="88" y2="88" class="ln-attn" marker-end="url(#ah-attn)"/>
+      <path d="M170 60C170 22 98 22 98 58" class="ln-flow" marker-end="url(#ah-flow)"/>
+      <text x="134" y="24" text-anchor="middle" font-size="11.5" class="t-flow">自己循环多步</text>
+      <rect x="90" y="60" width="88" height="56" rx="12" class="box-flow"/>
+      <text x="134" y="84" text-anchor="middle" font-size="13.5" font-weight="650">模型</text>
+      <text x="134" y="103" text-anchor="middle" font-size="11.5" class="t2">想 → 做 → 看</text>
+      <line x1="180" y1="80" x2="236" y2="42" class="ln-flow" marker-end="url(#ah-flow)"/>
+      <line x1="180" y1="88" x2="236" y2="88" class="ln-flow" marker-end="url(#ah-flow)"/>
+      <line x1="180" y1="96" x2="236" y2="134" class="ln-flow" marker-end="url(#ah-flow)"/>
+      <rect x="238" y="24" width="70" height="34" rx="8" class="box"/><text x="273" y="46" text-anchor="middle" font-size="12.5">搜索</text>
+      <rect x="238" y="71" width="70" height="34" rx="8" class="box"/><text x="273" y="93" text-anchor="middle" font-size="12.5">跑代码</text>
+      <rect x="238" y="118" width="70" height="34" rx="8" class="box"/><text x="273" y="140" text-anchor="middle" font-size="12.5">开网页</text>
+      <text x="160" y="181" text-anchor="middle" font-size="12" class="t-attn">能走多步，但走远了就跑偏，人得一直盯着</text>
+    </symbol>
+
     <symbol id="pic-openclaw" viewBox="0 0 320 190">
       <rect x="170" y="20" width="140" height="150" rx="12" class="box-risk ln-dash"/>
       <text x="240" y="42" text-anchor="middle" font-size="12" class="t-risk">你的电脑 · 你的全部权限</text>
@@ -589,50 +687,65 @@ html.mode-flow .stat b { font-size: 1.9rem; }
 </section>
 
 <!-- 2 演进 -->
-<section class="slide" id="evolution" data-steps="5" data-step="0" data-title="一年五步">
-  <h2 data-in>一年五步，走到 Super Agent</h2>
+<section class="slide" id="evolution" data-steps="7" data-step="0" data-title="四年七步">
+  <h2 data-in>四年七步，走到 Super Agent</h2>
   <div class="body">
     <div class="evo" data-in style="--i:1">
       <div class="evo-track">
         <div class="evo-rail"><i class="evo-fill"></i></div>
-        <button type="button" class="evo-tab is-active" data-set-step="0"><i></i><b>OpenClaw</b><small>2026.1</small></button>
-        <button type="button" class="evo-tab" data-set-step="1"><i></i><b>Coding Agent</b><small>2025 起</small></button>
-        <button type="button" class="evo-tab" data-set-step="2"><i></i><b>WorkBuddy</b><small>2026.3</small></button>
-        <button type="button" class="evo-tab" data-set-step="3"><i></i><b>Personal Agent</b><small>2026.5–11</small></button>
-        <button type="button" class="evo-tab" data-set-step="4"><i></i><b>Super Agent</b><small>2026.10.31</small></button>
+        <button type="button" class="evo-tab is-active" data-set-step="0"><i></i><b>对话</b><small>2022.11</small></button>
+        <button type="button" class="evo-tab" data-set-step="1"><i></i><b>会用工具</b><small>2023–2024</small></button>
+        <button type="button" class="evo-tab" data-set-step="2"><i></i><b>Coding Agent</b><small>2025</small></button>
+        <button type="button" class="evo-tab" data-set-step="3"><i></i><b>OpenClaw</b><small>2026.1</small></button>
+        <button type="button" class="evo-tab" data-set-step="4"><i></i><b>WorkBuddy</b><small>2026.3</small></button>
+        <button type="button" class="evo-tab" data-set-step="5"><i></i><b>Personal Agent</b><small>2026.5–9</small></button>
+        <button type="button" class="evo-tab" data-set-step="6"><i></i><b>Super Agent</b><small>2026.10.31</small></button>
+        <span class="evo-year" aria-hidden="true"><em>后四步都在今年</em></span>
       </div>
       <div class="evo-stage">
         <div class="evo-pics">
-          <svg class="evo-pic is-on" data-at="0" viewBox="0 0 320 190" role="img" aria-label="一个人通过聊天软件指挥装在自己电脑上的常驻网关"><use href="#pic-openclaw"/></svg>
-          <svg class="evo-pic" data-at="1" viewBox="0 0 320 190" role="img" aria-label="一个人同时盯着四个编码会话"><use href="#pic-coding"/></svg>
-          <svg class="evo-pic" data-at="2" viewBox="0 0 320 190" role="img" aria-label="一个人向桌面工作台逐项派活、逐项验收"><use href="#pic-workbuddy"/></svg>
-          <svg class="evo-pic" data-at="3" viewBox="0 0 320 190" role="img" aria-label="一个人指挥自己的 Agent，它有一台全天在线的云电脑"><use href="#pic-personal"/></svg>
-          <svg class="evo-pic" data-at="4" viewBox="0 0 320 190" role="img" aria-label="团队成员在群里提需求，路由分给并行的执行者，结果回到原对话"><use href="#pic-super"/></svg>
+          <svg class="evo-pic is-on" data-at="0" viewBox="0 0 320 190" role="img" aria-label="人在聊天窗口里提问，拿到答案后自己去改代码、跑测试、发上线"><use href="#pic-chat"/></svg>
+          <svg class="evo-pic" data-at="1" viewBox="0 0 320 190" role="img" aria-label="模型接上搜索、跑代码、开网页等工具，自己循环多步，人在旁边盯着"><use href="#pic-tools"/></svg>
+          <svg class="evo-pic" data-at="2" viewBox="0 0 320 190" role="img" aria-label="一个人同时盯着四个编码会话"><use href="#pic-coding"/></svg>
+          <svg class="evo-pic" data-at="3" viewBox="0 0 320 190" role="img" aria-label="一个人通过聊天软件指挥装在自己电脑上的常驻网关"><use href="#pic-openclaw"/></svg>
+          <svg class="evo-pic" data-at="4" viewBox="0 0 320 190" role="img" aria-label="一个人向桌面工作台逐项派活、逐项验收"><use href="#pic-workbuddy"/></svg>
+          <svg class="evo-pic" data-at="5" viewBox="0 0 320 190" role="img" aria-label="一个人指挥自己的 Agent，它有一台全天在线的云电脑"><use href="#pic-personal"/></svg>
+          <svg class="evo-pic" data-at="6" viewBox="0 0 320 190" role="img" aria-label="团队成员在群里提需求，路由分给并行的执行者，结果回到原对话"><use href="#pic-super"/></svg>
         </div>
         <div class="evo-texts">
           <article class="evo-text is-on" data-at="0">
-            <p class="evo-when">2026 年 1 月爆红</p>
+            <p class="evo-when">2022 年 11 月 · ChatGPT</p>
+            <h3>会回答，不会动手</h3>
+            <p class="evo-gap"><span>留下</span>答案要人自己拿去执行</p>
+          </article>
+          <article class="evo-text" data-at="1">
+            <p class="evo-when">2023–2024 · AutoGPT、函数调用、Devin、MCP</p>
+            <h3>接上工具，开始自己走多步</h3>
+            <p class="evo-gap"><span>留下</span>走远了就跑偏，离不开人盯</p>
+          </article>
+          <article class="evo-text" data-at="2">
+            <p class="evo-when">2025 · Claude Code、Codex，通用型有 Manus</p>
+            <h3>真的动手：<span class="nb">读代码、跑命令、提 PR</span></h3>
+            <p class="evo-gap"><span>留下</span>一个会话占一个人，多了盯不过来</p>
+          </article>
+          <article class="evo-text" data-at="3">
+            <p class="evo-when">2025 年 11 月诞生，2026 年 1 月爆红</p>
             <h3>常驻在线，会主动找你</h3>
             <p class="evo-gap"><span>留下</span>用你的全部权限运行，只服务你一个人</p>
           </article>
-          <article class="evo-text" data-at="1">
-            <p class="evo-when">Claude Code、Codex、Cursor</p>
-            <h3>真的动手：读代码、跑命令、提 PR</h3>
-            <p class="evo-gap"><span>留下</span>一个会话占一个人，多了盯不过来</p>
-          </article>
-          <article class="evo-text" data-at="2">
-            <p class="evo-when">腾讯的桌面工作台，个人工作站</p>
+          <article class="evo-text" data-at="4">
+            <p class="evo-when">2026 年 3 月 · 腾讯的桌面工作台，个人工作站</p>
             <h3>人人能用，多个任务并行</h3>
             <p class="evo-gap"><span>留下</span>还是人逐项派活、逐项验收</p>
           </article>
-          <article class="evo-text" data-at="3">
-            <p class="evo-when">ChatGPT dots、Grok Bot、Gemini Spark</p>
+          <article class="evo-text" data-at="5">
+            <p class="evo-when">2026 年 5–9 月 · Gemini Spark、Grok Bot、ChatGPT dots</p>
             <h3>有自己的云电脑，一直在线</h3>
             <p class="evo-gap"><span>留下</span>仍然是「我的」助手，团队里各管各的</p>
           </article>
-          <article class="evo-text" data-at="4">
-            <p class="evo-when">DeepSeek 发表文章并开源原型</p>
-            <h3>进入团队：统一入口、授权、留痕</h3>
+          <article class="evo-text" data-at="6">
+            <p class="evo-when">2026 年 10 月 31 日 · DeepSeek 发表文章并开源原型</p>
+            <h3>进入团队：<span class="nb">统一入口、授权、留痕</span></h3>
             <p class="evo-gap"><span>留下</span>安全和规模化，还要靠实践验证</p>
           </article>
         </div>
@@ -640,9 +753,9 @@ html.mode-flow .stat b { font-size: 1.9rem; }
     </div>
   </div>
   <aside class="notes"><ul>
-    <li>按 → 逐步走。每一步只讲两句：补上了什么，留下了什么。</li>
-    <li>图里琥珀色的线是人要盯的地方。前四步都是「一个人的助手」，第五步才进团队。</li>
-    <li>Coding Agent 起步最早（2025 年），这里按今年大家感受到的顺序排。</li>
+    <li>按 → 逐步走，严格按时间排。每一步只讲两句：补上了什么，留下了什么。</li>
+    <li>前三步用了三年，后四步都在今年。图里琥珀色的线是人要盯的地方：前六步都是「一个人的助手」，第七步才进团队。</li>
+    <li>各节点的具体日期在「来源」里（按 R）。OpenClaw 2025 年 11 月就有了，当时叫 Clawdbot，今年 1 月改名后才出圈。</li>
   </ul></aside>
 </section>
 
@@ -671,7 +784,102 @@ html.mode-flow .stat b { font-size: 1.9rem; }
   </ul></aside>
 </section>
 
-<!-- 4 怎么工作 -->
+<!-- 4 架构：按 DeepSeek 文章的架构总图重绘 -->
+<section class="slide" id="architecture" data-steps="8" data-step="0" data-title="架构">
+  <h2 data-in>架构：一个 Router 对人，一群 Worker 干活</h2>
+  <div class="body">
+    <div class="arch">
+      <div class="arch-fig" data-in style="--i:1">
+        <svg viewBox="0 0 1200 440" role="img" aria-label="Super Agent 架构图。事件经过两级过滤进入 Router 层，Router 把任务分给多个互相隔离的 Worker，并通过交互渠道回复人；同一话题的后续事件直通已订阅的 Worker；所有会话的状态存进会话数据库，Worker 经轻量 daemon 接入执行环境，Watchdog 在外部巡检">
+          <!-- 连线：灰线是结构，蓝线和流动的点是当前在讲的那一段 -->
+          <g class="wire" data-at="0,1,4"><path class="w-base" d="M222 79H280" marker-end="url(#ah-ink)"/><path class="w-hot" d="M222 79H280" marker-end="url(#ah-flow)"/><path class="dots" style="--gap:20px;--dur:0.5s" d="M226 79H266"/></g>
+          <g class="wire" data-at="0,1,2"><path class="w-base" d="M482 79H540" marker-end="url(#ah-ink)"/><path class="w-hot" d="M482 79H540" marker-end="url(#ah-flow)"/><path class="dots" style="--gap:60px;--dur:1.5s" d="M486 79H526"/></g>
+          <g class="wire" data-at="0,5"><path class="w-base" d="M862 79H920" marker-end="url(#ah-ink)"/><path class="w-hot" d="M862 79H920" marker-end="url(#ah-flow)"/><path class="dots" style="--gap:40px;--dur:1s" d="M866 79H906"/></g>
+          <g class="wire down" data-at="0,3"><path class="w-base" d="M562 130V164H517V194" marker-end="url(#ah-ink)"/><path class="w-hot" d="M562 130V164H517V194" marker-end="url(#ah-flow)"/><path class="dots" d="M562 134V164H517V182"/></g>
+          <g class="wire down" data-at="0,3"><path class="w-base" d="M702 130V194" marker-end="url(#ah-ink)"/><path class="w-hot" d="M702 130V194" marker-end="url(#ah-flow)"/><path class="dots" d="M702 134V182"/></g>
+          <g class="wire down" data-at="0,3"><path class="w-base" d="M842 130V164H887V194" marker-end="url(#ah-ink)"/><path class="w-hot" d="M842 130V164H887V194" marker-end="url(#ah-flow)"/><path class="dots" d="M842 134V164H887V182"/></g>
+          <g class="wire up" data-at="5"><path class="w-hot" d="M517 196V164H562V132" marker-end="url(#ah-flow)"/><path class="dots" d="M517 192V164H562V136"/></g>
+          <g class="wire up" data-at="5"><path class="w-hot" d="M702 196V132" marker-end="url(#ah-flow)"/><path class="dots" d="M702 192V136"/></g>
+          <g class="wire up" data-at="5"><path class="w-hot" d="M887 196V164H842V132" marker-end="url(#ah-flow)"/><path class="dots" d="M887 192V164H842V136"/></g>
+          <g class="wire soft" data-at="6"><path class="w-base" d="M609.5 130V342" marker-end="url(#ah-ink)"/><path class="w-hot" d="M609.5 130V342" marker-end="url(#ah-flow)"/><path class="dots" d="M609.5 134V330"/></g>
+          <g class="wire soft" data-at="6"><path class="w-base" d="M517 280V342" marker-end="url(#ah-ink)"/><path class="w-hot" d="M517 280V342" marker-end="url(#ah-flow)"/><path class="dots" d="M517 284V330"/></g>
+          <g class="wire soft" data-at="6"><path class="w-base" d="M702 280V342" marker-end="url(#ah-ink)"/><path class="w-hot" d="M702 280V342" marker-end="url(#ah-flow)"/><path class="dots" d="M702 284V330"/></g>
+          <g class="wire soft" data-at="6"><path class="w-base" d="M887 280V342" marker-end="url(#ah-ink)"/><path class="w-hot" d="M887 280V342" marker-end="url(#ah-flow)"/><path class="dots" d="M887 284V330"/></g>
+          <g class="wire" data-at="6"><path class="w-base" d="M957 238H995" marker-end="url(#ah-ink)"/><path class="w-hot" d="M957 238H995" marker-end="url(#ah-flow)"/><path class="dots" style="--gap:26px;--dur:0.65s" d="M961 238H981"/></g>
+          <g class="wire dashed" data-at="7"><path class="w-base" d="M222 380H445" marker-end="url(#ah-ink)"/><path class="w-hot" d="M222 380H445" marker-end="url(#ah-flow)"/><path class="dots" d="M226 380H431"/></g>
+          <g class="wire dashed pass" data-at="4" data-set-step="4" role="button" tabindex="0" aria-label="订阅直通">
+            <path class="w-base" d="M382 116V238H445" marker-end="url(#ah-flow)"/><path class="w-hot" d="M382 116V238H445" marker-end="url(#ah-flow)"/><path class="dots" d="M382 120V238H431"/>
+            <text class="wlabel" x="370" y="184" text-anchor="end">订阅直通</text>
+          </g>
+
+          <g class="node" style="--n:0" data-at="1,4" data-set-step="1" role="button" tabindex="0" aria-label="事件">
+            <rect class="nbox" x="20" y="42" width="202" height="74" rx="14"/>
+            <text class="nt" x="121" y="74" text-anchor="middle">事件</text><text class="ns" x="121" y="99" text-anchor="middle">群聊 · PR · CI</text>
+          </g>
+          <g class="node" style="--n:1" data-at="1,4" data-set-step="1" role="button" tabindex="0" aria-label="两级过滤">
+            <rect class="nbox" x="282" y="42" width="200" height="74" rx="14"/>
+            <text class="nt" x="382" y="74" text-anchor="middle">两级过滤</text><text class="ns" x="382" y="99" text-anchor="middle">先规则，后模型</text>
+          </g>
+          <g class="node hero" style="--n:2" data-at="2,3,5,6" data-set-step="2" role="button" tabindex="0" aria-label="Router 层">
+            <rect class="ring" x="542" y="28" width="320" height="102" rx="18"/>
+            <rect class="nbox" x="542" y="28" width="320" height="102" rx="18"/>
+            <text class="nt" x="702" y="72" text-anchor="middle">Router 层</text><text class="ns" x="702" y="102" text-anchor="middle">共享上下文 · 分派 · 对人</text>
+          </g>
+          <g class="node" style="--n:3" data-at="5" data-set-step="5" role="button" tabindex="0" aria-label="交互渠道">
+            <rect class="nbox" x="922" y="42" width="258" height="74" rx="14"/>
+            <text class="nt" x="1051" y="74" text-anchor="middle">交互渠道</text><text class="ns" x="1051" y="99" text-anchor="middle">IM · GitHub · 邮件</text>
+          </g>
+          <g class="node" style="--n:4" data-at="3,4,5,6" data-set-step="3" role="button" tabindex="0" aria-label="Worker 1">
+            <rect class="nbox" x="447" y="196" width="140" height="84" rx="14"/>
+            <text class="nt" x="517" y="230" text-anchor="middle">Worker 1</text><text class="ns" x="517" y="253" text-anchor="middle">隔离的上下文</text>
+            <rect class="wtrack" x="472" y="263" width="90" height="5" rx="2.5"/><rect class="wfill" x="472" y="263" width="90" height="5" rx="2.5"/>
+          </g>
+          <g class="node" style="--n:5" data-at="3,5,6" data-set-step="3" role="button" tabindex="0" aria-label="Worker 2">
+            <rect class="nbox" x="632" y="196" width="140" height="84" rx="14"/>
+            <text class="nt" x="702" y="230" text-anchor="middle">Worker 2</text><text class="ns" x="702" y="253" text-anchor="middle">隔离的上下文</text>
+            <rect class="wtrack" x="657" y="263" width="90" height="5" rx="2.5"/><rect class="wfill" style="animation-delay:0.3s" x="657" y="263" width="90" height="5" rx="2.5"/>
+          </g>
+          <g class="node" style="--n:6" data-at="3,5,6" data-set-step="3" role="button" tabindex="0" aria-label="Worker N">
+            <rect class="nbox" x="817" y="196" width="140" height="84" rx="14"/>
+            <text class="nt" x="887" y="230" text-anchor="middle">Worker N</text><text class="ns" x="887" y="253" text-anchor="middle">隔离的上下文</text>
+            <rect class="wtrack" x="842" y="263" width="90" height="5" rx="2.5"/><rect class="wfill" style="animation-delay:0.6s" x="842" y="263" width="90" height="5" rx="2.5"/>
+          </g>
+          <g class="node" style="--n:7" data-at="6" data-set-step="6" role="button" tabindex="0" aria-label="执行环境">
+            <rect class="nbox dash" x="997" y="196" width="183" height="84" rx="14"/>
+            <text class="nt" x="1088.5" y="234" text-anchor="middle">执行环境</text><text class="ns" x="1088.5" y="259" text-anchor="middle">经轻量 daemon 接入</text>
+          </g>
+          <g class="node" style="--n:8" data-at="6,7" data-set-step="6" role="button" tabindex="0" aria-label="会话数据库">
+            <rect class="nbox" x="447" y="344" width="510" height="72" rx="14"/>
+            <text class="nt" x="702" y="375" text-anchor="middle">会话数据库</text><text class="ns" x="702" y="400" text-anchor="middle">所有会话的持久状态</text>
+          </g>
+          <g class="node dog" style="--n:9" data-at="7" data-set-step="7" role="button" tabindex="0" aria-label="Watchdog">
+            <rect class="ring" x="20" y="344" width="202" height="72" rx="14"/>
+            <rect class="nbox" x="20" y="344" width="202" height="72" rx="14"/>
+            <text class="nt" x="121" y="375" text-anchor="middle">Watchdog</text><text class="ns" x="121" y="400" text-anchor="middle">外部巡检与恢复</text>
+          </g>
+          <text class="credit" x="1180" y="412" text-anchor="end">据 DeepSeek 文章的架构总图重绘</text>
+        </svg>
+      </div>
+      <div class="arch-caps" data-in style="--i:14">
+        <p class="arch-cap is-on" data-at="0"><b>全貌</b><span>事件进来，Router 分派，Worker 并行干活，再由 Router 统一回复。</span></p>
+        <p class="arch-cap" data-at="1"><b>事件驱动</b><span>一切输入都是事件。先用规则筛掉大部分无关消息，剩下的再让模型判断。</span></p>
+        <p class="arch-cap" data-at="2"><b>Router 层</b><span>路由：唯一常驻的会话，记住全局、分派任务、对人说话。它不干活，轻量模型就够。</span></p>
+        <p class="arch-cap" data-at="3"><b>Worker 层</b><span>执行者：一个任务一个，上下文互相隔离，并行执行，用最强的模型。</span></p>
+        <p class="arch-cap" data-at="4"><b>订阅直通</b><span>Worker 订阅自己的 PR 或话题，后续事件直通给它，不再经过 Router。</span></p>
+        <p class="arch-cap" data-at="5"><b>面向人的交互</b><span>只有 Router 对人说话：聊天里少打扰，GitHub 和邮件里写完整。</span></p>
+        <p class="arch-cap" data-at="6"><b>状态与环境</b><span>会话状态都存进数据库；执行环境经轻量 daemon 接入，可以是自己的机器。</span></p>
+        <p class="arch-cap" data-at="7"><b>Watchdog</b><span>一个独立的会话定时巡检：系统有没有故障，Worker 有没有实质进展。</span></p>
+      </div>
+    </div>
+  </div>
+  <aside class="notes"><ul>
+    <li>按 → 顺着一个事件走：事件、过滤、Router、Worker、直通、对人、状态与环境、Watchdog。也可以直接点图上的模块。</li>
+    <li>两个最值得讲的设计：Router 不干活，所以便宜又快；直通让后续消息不绕 Router，文章的实验里去掉它 token 多用约 37%。</li>
+    <li>如实说：这是文章里的完整设计。开源原型做了事件、过滤、Router、Worker、直通和渠道；Watchdog、云端加 daemon 的分离还没有，原型是单机运行。</li>
+  </ul></aside>
+</section>
+
+<!-- 5 怎么工作 -->
 <section class="slide" id="journey" data-steps="6" data-step="0" data-title="它怎么工作">
   <h2 data-in>@ 它一句，回来验收</h2>
   <div class="body">
@@ -693,19 +901,19 @@ html.mode-flow .stat b { font-size: 1.9rem; }
           <button type="button" class="jr-node" data-from="4" data-set-step="4"><i>干</i><b>执行者</b><span>独立目录，并行</span><em class="bars"><u></u><u></u><u></u></em></button>
           <button type="button" class="jr-node last" data-from="5" data-set-step="5"><i>回</i><b>渠道</b><span>结果回原对话</span></button>
         </div>
-        <p class="jr-roles">听、判、派、回由一个常驻的<b>路由</b>负责，它不写代码。干由多个<b>执行者</b>并行负责。</p>
+        <p class="jr-roles">听、判、派、回都是 <b>Router</b> 的事，它不写代码。干活的是 <b>Worker</b>，一张工单一个。</p>
         <p class="jr-punch" data-from="5">人只出现在两头：提需求，做验收。</p>
       </div>
     </div>
   </div>
   <aside class="notes"><ul>
     <li>按 → 一步一步走。左边聊天窗口里琥珀色的气泡是人，只有开头和结尾两处。</li>
-    <li>路由只做分发，所以可以用便宜的模型常驻；执行者才用最强的模型，一张工单一个，互不干扰。</li>
+    <li>这是上一页的架构跑一条真实的消息：左边是人看到的，右边是系统里发生的。</li>
     <li>对话内容是示意，流程来自原型文档。</li>
   </ul></aside>
 </section>
 
-<!-- 5 管得住 -->
+<!-- 6 管得住 -->
 <section class="slide" id="control" data-steps="3" data-step="0" data-title="它不会自作主张">
   <h2 data-in>它不会自作主张</h2>
   <div class="body">
@@ -736,7 +944,7 @@ html.mode-flow .stat b { font-size: 1.9rem; }
   </ul></aside>
 </section>
 
-<!-- 6 同类对比 -->
+<!-- 7 同类对比 -->
 <section class="slide" id="compare" data-steps="5" data-step="0" data-title="同类对比">
   <h2 data-in>同类产品都在往右上角走</h2>
   <div class="body">
@@ -811,7 +1019,7 @@ html.mode-flow .stat b { font-size: 1.9rem; }
   </ul></aside>
 </section>
 
-<!-- 7 对我们有什么用 -->
+<!-- 8 对我们有什么用 -->
 <section class="slide" id="value" data-steps="2" data-step="0" data-title="对我们有什么用">
   <h2 data-in>零碎活交给它，注意力留给难题</h2>
   <div class="body">
@@ -846,7 +1054,7 @@ html.mode-flow .stat b { font-size: 1.9rem; }
   </ul></aside>
 </section>
 
-<!-- 8 案例 -->
+<!-- 9 案例 -->
 <section class="slide" id="case" data-steps="3" data-step="0" data-title="案例：我们的插件">
   <h2 data-in>案例：两天，我们给它补上了团队协作这一层</h2>
   <div class="body">
@@ -894,21 +1102,22 @@ html.mode-flow .stat b { font-size: 1.9rem; }
     <button type="button" data-act="sources" title="来源（R）">来源</button>
     <button type="button" data-act="theme" title="明暗主题（T）">主题</button>
     <button type="button" data-act="full" title="全屏（F）">全屏</button>
-    <span class="count" id="count">01 / 08</span>
+    <span class="count" id="count">01 / 09</span>
   </div>
 </div>
 
 <div class="sheet" id="sources" hidden>
   <div class="sheet-head"><strong>来源</strong><button type="button" data-act="sources">关闭</button></div>
   <ol>
-    <li><b>Super-agent 的定义、3 到 5 个会话。</b>DeepSeek Harness 团队《Super-agent 设计探索：迈向更自主的 Agent 系统》，2026-10-31。引文据转载页逐句核对。</li>
-    <li><b>架构、三档开关、默认规则。</b>开源原型 deepseek-ai/dsh-superagent-prototype 的文档 docs/000 到 008。</li>
+    <li><b>Super-agent 的定义、3 到 5 个会话、架构图。</b>DeepSeek Harness 团队《Super-agent 设计探索：迈向更自主的 Agent 系统》，2026-10-31。引文据转载页逐句核对；第 4 页的架构图按原文的架构总图重绘。</li>
+    <li><b>一条消息的流程、三档开关、默认规则。</b>开源原型 deepseek-ai/dsh-superagent-prototype 的文档 docs/000 到 008。</li>
     <li><b>80% 的时间在等人。</b>Anthropic「Employment at Anthropic」，2026-10-16，已读原文。</li>
-    <li><b>OpenClaw、Multica、Claude Tag。</b>各自的官方仓库与文档，已读原文。</li>
+    <li><b>时间线的日期。</b>ChatGPT 2022-11-30；AutoGPT 2023-03-30，函数调用 2023-06-13，Devin 2024-03-12，MCP 2024-11-25；Claude Code 2025-02-24（预览），Manus 2025-03-06，Codex 2025-05-16；OpenClaw 2025-11 起步、2026-01-30 定名；WorkBuddy 2026-03-09；Gemini Spark 2026-05-19，Grok Bot 2026-08-11，ChatGPT dots 2026-09-29；DeepSeek 文章 2026-10-31。2025 年及以前的日期据厂商公告和当日报道。</li>
+    <li><b>OpenClaw、Multica、Claude Tag、Claude Code。</b>各自的官方仓库与文档，已读原文。</li>
     <li><b>WorkBuddy、ChatGPT dots、Grok Bot、Gemini Spark。</b>公开报道（IT之家、TechCrunch、VentureBeat 等），没有读到厂商原文，对外引用前请再核一次。</li>
     <li><b>案例数据。</b>本仓库 feat/projects 分支的 git 统计；截图来自 pnpm preview 的演示数据。</li>
   </ol>
-  <p>各产品在定位图上的位置，以及五个阶段的划分，是我们的归纳。</p>
+  <p>各产品在定位图上的位置，以及时间线分成哪七步，是我们的归纳。</p>
 </div>
 
 <div class="zoom" id="zoom" hidden><img alt=""></div>
@@ -1119,7 +1328,7 @@ window.DECK_IMAGES = {"board":"data:image/webp;base64,UklGRhS3AQBXRUJQVlA4IAi3AQ
     }, 800);
   })();
 
-  // 第 3 页：加会话、切到 Super Agent
+  // 瓶颈页：加会话、切到 Super Agent
   (function () {
     var slide = byId('attention');
     if (!slide) return;
@@ -1154,7 +1363,7 @@ window.DECK_IMAGES = {"board":"data:image/webp;base64,UklGRhS3AQBXRUJQVlA4IAi3AQ
     draw();
   })();
 
-  // 第 7 页：把任务分到两边
+  // 分拣页：把任务分到两边
   (function () {
     var slide = byId('value');
     if (!slide) return;
@@ -1183,7 +1392,7 @@ window.DECK_IMAGES = {"board":"data:image/webp;base64,UklGRhS3AQBXRUJQVlA4IAi3AQ
   })();
 
   // 打印时每页停在演示走完的样子
-  var printSteps = { evolution: 4, attention: 3, journey: 5, control: 1, compare: 4, value: 1 };
+  var printSteps = { evolution: 6, attention: 3, architecture: 0, journey: 5, control: 1, compare: 4, value: 1 };
   var before = null;
   function printState(on) {
     if (on) {
